@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="800"
+    android:viewportHeight="800">
+
+    <!-- Left Leg (Deep Purple -> Blue) -->
+    <path
+        android:pathData="M 270,515 L 400,245"
+        android:strokeWidth="116"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="220"
+                android:startY="540"
+                android:endX="420"
+                android:endY="200"
+                android:type="linear">
+                <item android:color="#FF581C87" android:offset="0.0" />
+                <item android:color="#FF7C3AED" android:offset="0.3" />
+                <item android:color="#FF3B82F6" android:offset="0.7" />
+                <item android:color="#FF2563EB" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Right Leg (Royal Blue -> Electric Cyan) -->
+    <path
+        android:pathData="M 400,245 L 530,515"
+        android:strokeWidth="116"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="380"
+                android:startY="200"
+                android:endX="560"
+                android:endY="540"
+                android:type="linear">
+                <item android:color="#FF1D4ED8" android:offset="0.0" />
+                <item android:color="#FF2563EB" android:offset="0.4" />
+                <item android:color="#FF0080FF" android:offset="0.8" />
+                <item android:color="#FF00A3FF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Center Overlap Glow -->
+    <path
+        android:fillAlpha="0.8"
+        android:pathData="M 335,435 Q 400,325 465,435 Q 400,395 335,435 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="340"
+                android:startY="340"
+                android:endX="460"
+                android:endY="440"
+                android:type="linear">
+                <item android:color="#FF38BDF8" android:offset="0.0" />
+                <item android:color="#FF93C5FD" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Sparkle Star Icon -->
+    <path
+        android:fillColor="#FF0080FF"
+        android:pathData="M 585,215 Q 585,250 620,250 Q 585,250 585,285 Q 585,250 550,250 Q 585,250 585,215 Z" />
+</vector>
