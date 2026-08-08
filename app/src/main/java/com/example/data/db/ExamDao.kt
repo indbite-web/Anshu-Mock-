@@ -28,6 +28,9 @@ interface ExamDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTestRecord(record: TestRecordEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTestRecords(records: List<TestRecordEntity>)
+
     @Query("DELETE FROM test_records WHERE id = :id")
     suspend fun deleteTestRecordById(id: Long)
 
@@ -46,6 +49,9 @@ interface ExamDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWrongQuestion(question: WrongQuestionEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWrongQuestions(questions: List<WrongQuestionEntity>)
 
     @Update
     suspend fun updateWrongQuestion(question: WrongQuestionEntity)
@@ -66,6 +72,9 @@ interface ExamDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBookmark(bookmark: BookmarkEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBookmarks(bookmarks: List<BookmarkEntity>)
+
     @Query("DELETE FROM bookmarks WHERE questionText = :questionText")
     suspend fun deleteBookmarkByQuestionText(questionText: String)
 
@@ -81,6 +90,9 @@ interface ExamDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateTopicStat(stat: TopicStatEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTopicStats(stats: List<TopicStatEntity>)
 
     // Question Bank
     @Query("SELECT * FROM question_bank ORDER BY createdAt DESC")

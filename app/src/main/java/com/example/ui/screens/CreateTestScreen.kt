@@ -36,6 +36,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
@@ -147,12 +148,92 @@ fun CreateTestScreen(
     var customTimerError by remember { mutableStateOf<String?>(null) }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
 
+    var selectedExamType by remember { mutableStateOf(com.example.model.ExamType.MCQ) }
+    var marksPerQuestion by remember { mutableIntStateOf(5) }
+    var answerLengthType by remember { mutableStateOf("Medium") }
+    var wordLimit by remember { mutableIntStateOf(100) }
+    var mcqQuestionCount by remember { mutableIntStateOf(5) }
+    var writtenQuestionCount by remember { mutableIntStateOf(5) }
+
+    // Written Question Sub-Configurations (Short, Medium, Long)
+    var shortWrittenEnabled by remember { mutableStateOf(true) }
+    var shortWrittenCount by remember { mutableIntStateOf(3) }
+    var shortWrittenMarks by remember { mutableIntStateOf(2) }
+    var shortWrittenWordLimit by remember { mutableIntStateOf(50) }
+
+    var mediumWrittenEnabled by remember { mutableStateOf(false) }
+    var mediumWrittenCount by remember { mutableIntStateOf(2) }
+    var mediumWrittenMarks by remember { mutableIntStateOf(5) }
+    var mediumWrittenWordLimit by remember { mutableIntStateOf(100) }
+
+    var longWrittenEnabled by remember { mutableStateOf(false) }
+    var longWrittenCount by remember { mutableIntStateOf(1) }
+    var longWrittenMarks by remember { mutableIntStateOf(10) }
+    var longWrittenWordLimit by remember { mutableIntStateOf(250) }
+
+    val totalWrittenCount = remember(
+        shortWrittenEnabled, shortWrittenCount,
+        mediumWrittenEnabled, mediumWrittenCount,
+        longWrittenEnabled, longWrittenCount
+    ) {
+        var sum = 0
+        if (shortWrittenEnabled) sum += shortWrittenCount.coerceAtLeast(0)
+        if (mediumWrittenEnabled) sum += mediumWrittenCount.coerceAtLeast(0)
+        if (longWrittenEnabled) sum += longWrittenCount.coerceAtLeast(0)
+        sum
+    }
+
+    val totalWrittenMarks = remember(
+        shortWrittenEnabled, shortWrittenCount, shortWrittenMarks,
+        mediumWrittenEnabled, mediumWrittenCount, mediumWrittenMarks,
+        longWrittenEnabled, longWrittenCount, longWrittenMarks
+    ) {
+        var marks = 0
+        if (shortWrittenEnabled) marks += (shortWrittenCount.coerceAtLeast(0) * shortWrittenMarks.coerceAtLeast(0))
+        if (mediumWrittenEnabled) marks += (mediumWrittenCount.coerceAtLeast(0) * mediumWrittenMarks.coerceAtLeast(0))
+        if (longWrittenEnabled) marks += (longWrittenCount.coerceAtLeast(0) * longWrittenMarks.coerceAtLeast(0))
+        marks
+    }
+
+    val configValidationError: String? = remember(
+        selectedExamType, questionCount, mcqQuestionCount,
+        shortWrittenEnabled, shortWrittenCount, shortWrittenMarks, shortWrittenWordLimit,
+        mediumWrittenEnabled, mediumWrittenCount, mediumWrittenMarks, mediumWrittenWordLimit,
+        longWrittenEnabled, longWrittenCount, longWrittenMarks, longWrittenWordLimit,
+        totalWrittenCount
+    ) {
+        when (selectedExamType) {
+            com.example.model.ExamType.MCQ -> {
+                if (questionCount < 1) "Please select at least 1 MCQ question." else null
+            }
+            com.example.model.ExamType.WRITTEN -> {
+                if (!shortWrittenEnabled && !mediumWrittenEnabled && !longWrittenEnabled) {
+                    "Please select at least one written question type (Short, Medium, or Long)."
+                } else if (totalWrittenCount < 1) {
+                    "Please set written question count to at least 1."
+                } else null
+            }
+            com.example.model.ExamType.MIXED -> {
+                if (mcqQuestionCount < 1) {
+                    "Please select at least 1 MCQ question for Mixed test."
+                } else if (!shortWrittenEnabled && !mediumWrittenEnabled && !longWrittenEnabled) {
+                    "Please select at least one written question type (Short, Medium, or Long)."
+                } else if (totalWrittenCount < 1) {
+                    "Please set written question count to at least 1."
+                } else null
+            }
+        }
+    }
+
     // ONLY navigate to quiz when quizState turns Active and has questions!
     LaunchedEffect(quizState) {
         if (quizState is QuizUiState.Active) {
             val activeState = quizState as QuizUiState.Active
-            if (activeState.quiz.questions.isNotEmpty()) {
-                onStartQuiz()
+            if (activeState.quiz.questions.isNotEmpty() || activeState.quiz.writtenQuestions.isNotEmpty()) {
+                val activity = context as? android.app.Activity
+                com.example.util.AdManager.showInterstitialAdIfEligible(activity) {
+                    onStartQuiz()
+                }
             }
         }
     }
@@ -761,6 +842,65 @@ fun CreateTestScreen(
                     }
                 }
 
+                // 4.5 Exam Type Selection
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Exam Type",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(
+                                    com.example.model.ExamType.MCQ to "MCQ TEST",
+                                    com.example.model.ExamType.WRITTEN to "WRITTEN TEST",
+                                    com.example.model.ExamType.MIXED to "MIXED TEST"
+                                ).forEach { (type, label) ->
+                                    val isSelected = selectedExamType == type
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedExamType = type },
+                                        label = {
+                                            Text(
+                                                text = label,
+                                                fontSize = 12.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("exam_type_chip_${type.name}"),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            enabled = true,
+                                            selected = isSelected,
+                                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                            selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                            borderWidth = 1.dp,
+                                            selectedBorderWidth = 1.5.dp
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 5. Test Configuration
                 item {
                     Card(
@@ -773,7 +913,7 @@ fun CreateTestScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Text(
                                 text = "Test Configuration",
@@ -782,105 +922,197 @@ fun CreateTestScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
 
-                            // Question Count
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Questions", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(
-                                        onClick = { if (questionCount > 5) questionCount -= 5 },
-                                        modifier = Modifier.size(36.dp)
+                            // --- MCQ SECTION (For MCQ or MIXED mode) ---
+                            if (selectedExamType == com.example.model.ExamType.MCQ || selectedExamType == com.example.model.ExamType.MIXED) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.Remove, contentDescription = "Decrease")
-                                    }
-                                    Text(
-                                        text = "$questionCount",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 8.dp)
-                                    )
-                                    IconButton(
-                                        onClick = { if (questionCount < 100) questionCount += 5 },
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = "Increase")
-                                    }
-                                }
-                            }
+                                        Text(
+                                            text = "MCQ Question Count",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
 
-                            // Quick Presets
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf(10, 20, 30, 50).forEach { preset ->
-                                    val isSelected = questionCount == preset
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = { questionCount = preset },
-                                        label = {
+                                        val currentMcqVal = if (selectedExamType == com.example.model.ExamType.MIXED) mcqQuestionCount else questionCount
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(
+                                                onClick = {
+                                                    if (selectedExamType == com.example.model.ExamType.MIXED) {
+                                                        if (mcqQuestionCount > 1) mcqQuestionCount -= 1
+                                                    } else {
+                                                        if (questionCount > 1) questionCount -= 1
+                                                    }
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(Icons.Default.Remove, contentDescription = "Decrease MCQs")
+                                            }
                                             Text(
-                                                text = "$preset Qs",
-                                                fontSize = 12.sp,
-                                                maxLines = 1,
-                                                softWrap = false
+                                                text = "$currentMcqVal",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 8.dp)
                                             )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        border = FilterChipDefaults.filterChipBorder(
-                                            enabled = true,
-                                            selected = isSelected,
-                                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                            selectedBorderColor = MaterialTheme.colorScheme.primary,
-                                            borderWidth = 1.dp,
-                                            selectedBorderWidth = 1.5.dp
-                                        )
-                                    )
+                                            IconButton(
+                                                onClick = {
+                                                    if (selectedExamType == com.example.model.ExamType.MIXED) {
+                                                        if (mcqQuestionCount < 50) mcqQuestionCount += 1
+                                                    } else {
+                                                        if (questionCount < 50) questionCount += 1
+                                                    }
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(Icons.Default.Add, contentDescription = "Increase MCQs")
+                                            }
+                                        }
+                                    }
+
+                                    // Responsive MCQ Preset Chips
+                                    FlowRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        listOf(3, 5, 10, 15, 20).forEach { preset ->
+                                            val isSel = if (selectedExamType == com.example.model.ExamType.MIXED) mcqQuestionCount == preset else questionCount == preset
+                                            FilterChip(
+                                                selected = isSel,
+                                                onClick = {
+                                                    if (selectedExamType == com.example.model.ExamType.MIXED) mcqQuestionCount = preset else questionCount = preset
+                                                },
+                                                label = {
+                                                    Text(
+                                                        text = "$preset MCQs",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        maxLines = 1,
+                                                        softWrap = false
+                                                    )
+                                                },
+                                                border = FilterChipDefaults.filterChipBorder(
+                                                    enabled = true,
+                                                    selected = isSel,
+                                                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                                    selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                                    borderWidth = 1.dp,
+                                                    selectedBorderWidth = 1.5.dp
+                                                )
+                                            )
+                                        }
+                                    }
                                 }
                             }
 
-                            // Difficulty Segmented Control - 2x2 Responsive Layout
-                            Text("Difficulty", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    listOf("Easy", "Medium").forEach { diff ->
-                                        val isSelected = selectedDifficulty.equals(diff, ignoreCase = true)
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = { selectedDifficulty = diff },
-                                            label = { Text(diff, fontSize = 12.sp, fontWeight = FontWeight.Medium) },
-                                            modifier = Modifier.weight(1f),
-                                            border = FilterChipDefaults.filterChipBorder(
-                                                enabled = true,
-                                                selected = isSelected,
-                                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                                selectedBorderColor = MaterialTheme.colorScheme.primary,
-                                                borderWidth = 1.dp,
-                                                selectedBorderWidth = 1.5.dp
-                                            )
-                                        )
+                            // --- WRITTEN SECTION (For WRITTEN or MIXED mode) ---
+                            if (selectedExamType == com.example.model.ExamType.WRITTEN || selectedExamType == com.example.model.ExamType.MIXED) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text(
+                                        text = "Written Question Types (Multi-Selectable)",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "Enable the types of written questions you want and configure count & marks independently:",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+
+                                    // 1. SHORT ANSWER CONFIG
+                                    WrittenTypeConfigCard(
+                                        title = "Short Answer (~50 words)",
+                                        enabled = shortWrittenEnabled,
+                                        onEnabledChange = { shortWrittenEnabled = it },
+                                        count = shortWrittenCount,
+                                        onCountChange = { shortWrittenCount = it },
+                                        marks = shortWrittenMarks,
+                                        onMarksChange = { shortWrittenMarks = it },
+                                        wordLimit = shortWrittenWordLimit,
+                                        onWordLimitChange = { shortWrittenWordLimit = it },
+                                        countPresets = listOf(1, 2, 3, 5),
+                                        marksPresets = listOf(1, 2, 3, 5)
+                                    )
+
+                                    // 2. MEDIUM ANSWER CONFIG
+                                    WrittenTypeConfigCard(
+                                        title = "Medium Answer (~100 words)",
+                                        enabled = mediumWrittenEnabled,
+                                        onEnabledChange = { mediumWrittenEnabled = it },
+                                        count = mediumWrittenCount,
+                                        onCountChange = { mediumWrittenCount = it },
+                                        marks = mediumWrittenMarks,
+                                        onMarksChange = { mediumWrittenMarks = it },
+                                        wordLimit = mediumWrittenWordLimit,
+                                        onWordLimitChange = { mediumWrittenWordLimit = it },
+                                        countPresets = listOf(1, 2, 3, 5),
+                                        marksPresets = listOf(3, 5, 8, 10)
+                                    )
+
+                                    // 3. LONG ANSWER CONFIG
+                                    WrittenTypeConfigCard(
+                                        title = "Long / Detailed (~250 words)",
+                                        enabled = longWrittenEnabled,
+                                        onEnabledChange = { longWrittenEnabled = it },
+                                        count = longWrittenCount,
+                                        onCountChange = { longWrittenCount = it },
+                                        marks = longWrittenMarks,
+                                        onMarksChange = { longWrittenMarks = it },
+                                        wordLimit = longWrittenWordLimit,
+                                        onWordLimitChange = { longWrittenWordLimit = it },
+                                        countPresets = listOf(1, 2, 3),
+                                        marksPresets = listOf(10, 15, 20)
+                                    )
+
+                                    // WRITTEN SUMMARY CARD
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text(
+                                                    text = "Written Test Breakdown",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                                Text(
+                                                    text = "Total Written Qs: $totalWrittenCount | Total Marks: $totalWrittenMarks",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
+                                        }
                                     }
                                 }
-                                Row(
+                            }
+
+                            // Difficulty Segmented Control - Responsive Layout
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Difficulty", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                FlowRow(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    listOf("Hard", "Very Hard").forEach { diff ->
+                                    listOf("Easy", "Medium", "Hard", "Very Hard").forEach { diff ->
                                         val isSelected = selectedDifficulty.equals(diff, ignoreCase = true)
                                         FilterChip(
                                             selected = isSelected,
                                             onClick = { selectedDifficulty = diff },
-                                            label = { Text(diff, fontSize = 12.sp, fontWeight = FontWeight.Medium) },
-                                            modifier = Modifier.weight(1f),
+                                            label = { Text(diff, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false) },
                                             border = FilterChipDefaults.filterChipBorder(
                                                 enabled = true,
                                                 selected = isSelected,
@@ -895,99 +1127,123 @@ fun CreateTestScreen(
                             }
 
                             // Question Style
-                            Text("Question Style", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                            val styleOptions = listOf("Mixed", "Conceptual", "Statement Based", "Match Following", "Direct")
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                styleOptions.forEach { style ->
-                                    val isSelected = selectedStyle == style
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = { selectedStyle = style },
-                                        label = { Text(style, fontSize = 12.sp) },
-                                        border = FilterChipDefaults.filterChipBorder(
-                                            enabled = true,
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Question Style", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                val styleOptions = listOf("Mixed", "Conceptual", "Statement Based", "Match Following", "Direct")
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    styleOptions.forEach { style ->
+                                        val isSelected = selectedStyle == style
+                                        FilterChip(
                                             selected = isSelected,
-                                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                            selectedBorderColor = MaterialTheme.colorScheme.primary,
-                                            borderWidth = 1.dp,
-                                            selectedBorderWidth = 1.5.dp
+                                            onClick = { selectedStyle = style },
+                                            label = { Text(style, fontSize = 12.sp, maxLines = 1, softWrap = false) },
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                enabled = true,
+                                                selected = isSelected,
+                                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                                selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                                borderWidth = 1.dp,
+                                                selectedBorderWidth = 1.5.dp
+                                            )
                                         )
-                                    )
+                                    }
                                 }
                             }
 
                             // Language
-                            Text("Language", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf("Hindi", "English", "Bilingual").forEach { lang ->
-                                    val isSelected = selectedLanguage.equals(lang, ignoreCase = true)
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = { selectedLanguage = lang },
-                                        label = { Text(lang, fontSize = 12.sp) },
-                                        modifier = Modifier.weight(1f),
-                                        border = FilterChipDefaults.filterChipBorder(
-                                            enabled = true,
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Language", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    listOf("Hindi", "English", "Bilingual").forEach { lang ->
+                                        val isSelected = selectedLanguage.equals(lang, ignoreCase = true)
+                                        FilterChip(
                                             selected = isSelected,
-                                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                            selectedBorderColor = MaterialTheme.colorScheme.primary,
-                                            borderWidth = 1.dp,
-                                            selectedBorderWidth = 1.5.dp
+                                            onClick = { selectedLanguage = lang },
+                                            label = { Text(lang, fontSize = 12.sp, maxLines = 1, softWrap = false) },
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                enabled = true,
+                                                selected = isSelected,
+                                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                                selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                                borderWidth = 1.dp,
+                                                selectedBorderWidth = 1.5.dp
+                                            )
                                         )
-                                    )
+                                    }
                                 }
                             }
-
-                            Spacer(modifier = Modifier.height(4.dp))
 
                             // Timer Configuration
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Timer,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "Timer",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Timer,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Timer",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
 
-                            val isCustomTimer = timerMinutes > 0 && timerMinutes !in listOf(10, 20, 30, 60)
+                                val isCustomTimer = timerMinutes > 0 && timerMinutes !in listOf(10, 20, 30, 60)
 
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                val presets = listOf(
-                                    0 to "No Timer",
-                                    10 to "10 min",
-                                    20 to "20 min",
-                                    30 to "30 min",
-                                    60 to "60 min"
-                                )
-                                presets.forEach { (mins, label) ->
-                                    val isSelected = timerMinutes == mins
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    val presets = listOf(
+                                        0 to "No Timer",
+                                        10 to "10 min",
+                                        20 to "20 min",
+                                        30 to "30 min",
+                                        60 to "60 min"
+                                    )
+                                    presets.forEach { (mins, label) ->
+                                        val isSelected = timerMinutes == mins
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { timerMinutes = mins },
+                                            label = { Text(label, fontSize = 12.sp, maxLines = 1, softWrap = false) },
+                                            modifier = Modifier.testTag("timer_chip_$mins"),
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                enabled = true,
+                                                selected = isSelected,
+                                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                                selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                                borderWidth = 1.dp,
+                                                selectedBorderWidth = 1.5.dp
+                                            )
+                                        )
+                                    }
+
+                                    val customText = if (isCustomTimer) "Custom (${timerMinutes}m)" else "Custom"
                                     FilterChip(
-                                        selected = isSelected,
-                                        onClick = { timerMinutes = mins },
-                                        label = { Text(label, fontSize = 12.sp) },
-                                        modifier = Modifier.testTag("timer_chip_$mins"),
+                                        selected = isCustomTimer,
+                                        onClick = {
+                                            customTimerInput = if (isCustomTimer) "$timerMinutes" else ""
+                                            customTimerError = null
+                                            showCustomTimerDialog = true
+                                        },
+                                        label = { Text(customText, fontSize = 12.sp, maxLines = 1, softWrap = false) },
+                                        modifier = Modifier.testTag("timer_chip_custom"),
                                         border = FilterChipDefaults.filterChipBorder(
                                             enabled = true,
-                                            selected = isSelected,
+                                            selected = isCustomTimer,
                                             borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
                                             selectedBorderColor = MaterialTheme.colorScheme.primary,
                                             borderWidth = 1.dp,
@@ -995,26 +1251,33 @@ fun CreateTestScreen(
                                         )
                                     )
                                 }
+                            }
 
-                                val customText = if (isCustomTimer) "Custom (${timerMinutes}m)" else "Custom"
-                                FilterChip(
-                                    selected = isCustomTimer,
-                                    onClick = {
-                                        customTimerInput = if (isCustomTimer) "$timerMinutes" else ""
-                                        customTimerError = null
-                                        showCustomTimerDialog = true
-                                    },
-                                    label = { Text(customText, fontSize = 12.sp) },
-                                    modifier = Modifier.testTag("timer_chip_custom"),
-                                    border = FilterChipDefaults.filterChipBorder(
-                                        enabled = true,
-                                        selected = isCustomTimer,
-                                        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                        selectedBorderColor = MaterialTheme.colorScheme.primary,
-                                        borderWidth = 1.dp,
-                                        selectedBorderWidth = 1.5.dp
-                                    )
-                                )
+                            // INLINE VALIDATION ERROR BANNER
+                            if (configValidationError != null) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ErrorOutline,
+                                            contentDescription = "Validation Error",
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                        Text(
+                                            text = configValidationError,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -1097,11 +1360,25 @@ fun CreateTestScreen(
                                 val finalExam = if (targetExam == "Custom Exam") customExamName.ifBlank { "Custom Exam" } else targetExam
                                 val finalSubject = if (targetSubject == "Custom Subject") customSubjectName.ifBlank { "General" } else targetSubject
 
+                                val finalMcqCount = when (selectedExamType) {
+                                    com.example.model.ExamType.MCQ -> questionCount
+                                    com.example.model.ExamType.WRITTEN -> 0
+                                    com.example.model.ExamType.MIXED -> mcqQuestionCount
+                                }
+
+                                val finalWrittenCount = when (selectedExamType) {
+                                    com.example.model.ExamType.MCQ -> 0
+                                    com.example.model.ExamType.WRITTEN -> totalWrittenCount
+                                    com.example.model.ExamType.MIXED -> totalWrittenCount
+                                }
+
+                                val finalCount = finalMcqCount + finalWrittenCount
+
                                 val config = TestConfig(
                                     targetExam = finalExam,
                                     subject = finalSubject,
                                     topic = targetTopic,
-                                    questionCount = questionCount,
+                                    questionCount = finalCount,
                                     difficulty = selectedDifficulty,
                                     style = selectedStyle,
                                     language = selectedLanguage,
@@ -1109,13 +1386,37 @@ fun CreateTestScreen(
                                     naturalPrompt = customInstruction,
                                     customInstruction = customInstruction,
                                     timerModeMinutes = timerMinutes,
-                                    negativeMarkingRatio = negativeMarkingRatio
+                                    negativeMarkingRatio = negativeMarkingRatio,
+                                    examType = selectedExamType,
+                                    marksPerQuestion = marksPerQuestion,
+                                    answerLengthType = answerLengthType,
+                                    wordLimit = wordLimit,
+                                    mcqQuestionCount = finalMcqCount,
+                                    writtenQuestionCount = finalWrittenCount,
+                                    shortWrittenConfig = com.example.model.WrittenTypeConfig(
+                                        enabled = shortWrittenEnabled,
+                                        count = shortWrittenCount,
+                                        marksEach = shortWrittenMarks,
+                                        wordLimit = shortWrittenWordLimit
+                                    ),
+                                    mediumWrittenConfig = com.example.model.WrittenTypeConfig(
+                                        enabled = mediumWrittenEnabled,
+                                        count = mediumWrittenCount,
+                                        marksEach = mediumWrittenMarks,
+                                        wordLimit = mediumWrittenWordLimit
+                                    ),
+                                    longWrittenConfig = com.example.model.WrittenTypeConfig(
+                                        enabled = longWrittenEnabled,
+                                        count = longWrittenCount,
+                                        marksEach = longWrittenMarks,
+                                        wordLimit = longWrittenWordLimit
+                                    )
                                 )
 
                                 viewModel.startNewTest(config)
                             }
                         },
-                        enabled = !isGenerating,
+                        enabled = !isGenerating && configValidationError == null,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp)
@@ -1151,44 +1452,151 @@ fun CreateTestScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Select Gemini AI Model", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Select Gemini AI Model",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+
                 SupportedModel.FREE_MODEL_ALLOWLIST.forEach { model ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable {
-                                viewModel.prefsRepo.setSelectedModel(model.modelId)
-                                showModelBottomSheet = false
-                            }
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    val isSelected = model.modelId == selectedModelId
+
+                    Surface(
+                        onClick = {
+                            viewModel.prefsRepo.setSelectedModel(model.modelId)
+                            showModelBottomSheet = false
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column {
-                            Text(model.displayName, fontWeight = FontWeight.Bold)
-                            Text(model.description, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        if (model.modelId == selectedModelId) {
-                            Text("Selected", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = model.displayName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = model.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            if (isSelected) {
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "Selected",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
 
     if (showApiKeyDialog) {
+        val context = LocalContext.current
         AlertDialog(
             onDismissRequest = { showApiKeyDialog = false },
             title = { Text("Gemini API Key Required", fontWeight = FontWeight.Bold) },
-            text = { Text("Please add your free Gemini API key in Settings → AI Configuration to generate tests.") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Please add your free Gemini API key in Settings → AI Configuration to generate tests.")
+
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "Don't know how to get an API key?",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedButton(
+                                onClick = { com.example.util.Constants.openTutorialVideo(context) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = "▶",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Watch Tutorial",
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold
+                                        ),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             confirmButton = {
                 Button(onClick = { showApiKeyDialog = false; onNavigateBack() }) {
-                    Text("OK")
+                    Text("Go to Settings")
                 }
             }
         )
@@ -1257,5 +1665,157 @@ fun CreateTestScreen(
                 }
             }
         )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WrittenTypeConfigCard(
+    title: String,
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    count: Int,
+    onCountChange: (Int) -> Unit,
+    marks: Int,
+    onMarksChange: (Int) -> Unit,
+    wordLimit: Int,
+    onWordLimitChange: (Int) -> Unit,
+    countPresets: List<Int>,
+    marksPresets: List<Int>
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (enabled) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surface
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (enabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = onEnabledChange
+                    )
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            AnimatedVisibility(visible = enabled) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Question Count Controls
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Count:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { if (count > 0) onCountChange(count - 1) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(Icons.Default.Remove, contentDescription = "Decrease")
+                            }
+                            Text(
+                                text = "$count Qs",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp)
+                            )
+                            IconButton(
+                                onClick = { if (count < 20) onCountChange(count + 1) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Increase")
+                            }
+                        }
+                    }
+
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        countPresets.forEach { p ->
+                            FilterChip(
+                                selected = count == p,
+                                onClick = { onCountChange(p) },
+                                label = { Text("$p Qs", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                            )
+                        }
+                    }
+
+                    // Marks Each Controls
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Marks each:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { if (marks > 1) onMarksChange(marks - 1) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(Icons.Default.Remove, contentDescription = "Decrease Marks")
+                            }
+                            Text(
+                                text = "$marks Marks",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp)
+                            )
+                            IconButton(
+                                onClick = { if (marks < 100) onMarksChange(marks + 1) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Increase Marks")
+                            }
+                        }
+                    }
+
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        marksPresets.forEach { m ->
+                            FilterChip(
+                                selected = marks == m,
+                                onClick = { onMarksChange(m) },
+                                label = { Text("$m Marks", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }

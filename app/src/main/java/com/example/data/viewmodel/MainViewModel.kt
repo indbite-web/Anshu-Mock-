@@ -372,11 +372,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startNewTest(config: TestConfig) {
         lastTestConfig = config
+        com.example.util.AdManager.onGenerationStart(getApplication())
         viewModelScope.launch {
             _quizState.value = QuizUiState.Generating("Analyzing study material...")
             try {
                 val apiKey = prefsRepo.getEffectiveApiKey()
                 if (apiKey.isBlank()) {
+                    com.example.util.AdManager.onGenerationFailed()
                     _quizState.value = QuizUiState.Error("Gemini API key required. Please configure your API key in Settings → AI Configuration.")
                     return@launch
                 }
@@ -396,7 +398,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 )
 
+                com.example.util.AdManager.onGenerationSuccess()
+
                 _userAnswers.value = emptyMap()
+                _writtenAnswers.value = emptyMap()
+                _writtenEvaluations.value = emptyList()
+                _evaluationError.value = null
                 _markedForReview.value = emptySet()
                 _currentQuestionIndex.value = 0
 
@@ -414,6 +421,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 startTimer(timerMinutes)
             } catch (e: Exception) {
+                com.example.util.AdManager.onGenerationFailed()
                 android.util.Log.e("MainViewModel", "Test generation error", e)
                 val msg = e.localizedMessage ?: "Failed to generate practice test. Please try again."
                 _quizState.value = QuizUiState.Error(msg)
@@ -477,11 +485,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _currentQuestionIndex.value = index
     }
 
+    // Written Answers State
+    private val _writtenAnswers = MutableStateFlow<Map<Int, String>>(emptyMap())
+    val writtenAnswers: StateFlow<Map<Int, String>> = _writtenAnswers.asStateFlow()
+
+    private val _isEvaluating = MutableStateFlow(false)
+    val isEvaluating: StateFlow<Boolean> = _isEvaluating.asStateFlow()
+
+    private val _evaluationError = MutableStateFlow<String?>(null)
+    val evaluationError: StateFlow<String?> = _evaluationError.asStateFlow()
+
+    private val _writtenEvaluations = MutableStateFlow<List<com.example.model.WrittenEvaluation>>(emptyList())
+    val writtenEvaluations: StateFlow<List<com.example.model.WrittenEvaluation>> = _writtenEvaluations.asStateFlow()
+
+    fun updateWrittenAnswer(questionId: Int, answer: String) {
+        val current = _writtenAnswers.value.toMutableMap()
+        current[questionId] = answer
+        _writtenAnswers.value = current
+    }
+
+    fun clearEvaluationError() {
+        _evaluationError.value = null
+    }
+
     fun submitTest(fromTimer: Boolean = false) {
         timerJob?.cancel()
         val activeState = _quizState.value as? QuizUiState.Active ?: return
 
         viewModelScope.launch {
+            val hasWrittenQuestions = activeState.quiz.writtenQuestions.isNotEmpty()
+
+            var evals: List<com.example.model.WrittenEvaluation> = emptyList()
+
+            if (hasWrittenQuestions) {
+                _isEvaluating.value = true
+                _evaluationError.value = null
+                _quizState.value = QuizUiState.Generating("AI is evaluating your written answers...")
+
+                val apiKey = prefsRepo.getEffectiveApiKey()
+                if (apiKey.isBlank()) {
+                    _isEvaluating.value = false
+                    _evaluationError.value = "Gemini API key required for evaluation. Please configure key in Settings."
+                    _quizState.value = activeState // restore active state so student doesn't lose answers!
+                    return@launch
+                }
+
+                try {
+                    evals = examRepo.evaluateWrittenTest(
+                        questions = activeState.quiz.writtenQuestions,
+                        userAnswers = _writtenAnswers.value,
+                        preferredModelId = prefsRepo.selectedModel.value,
+                        autoFallback = prefsRepo.autoFallbackEnabled.value,
+                        apiKey = apiKey,
+                        onStatusUpdate = { msg ->
+                            _quizState.value = QuizUiState.Generating(msg)
+                        }
+                    )
+                    _writtenEvaluations.value = evals
+                    _isEvaluating.value = false
+                } catch (e: Exception) {
+                    android.util.Log.e("MainViewModel", "Evaluation failed", e)
+                    _isEvaluating.value = false
+                    _evaluationError.value = e.localizedMessage ?: "AI Evaluation failed. Your answers are saved! Tap retry."
+                    _quizState.value = activeState // restore active state so student doesn't lose answers!
+                    return@launch
+                }
+            }
+
             val nowSeconds = System.currentTimeMillis() / 1000
             val timeTaken = maxOf(1L, nowSeconds - testStartTimeSeconds)
 
@@ -494,6 +564,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val record = examRepo.saveTestResult(
                 quiz = activeState.quiz,
                 userAnswers = _userAnswers.value,
+                writtenAnswers = _writtenAnswers.value,
+                evaluations = evals,
                 timeTakenSeconds = timeTaken,
                 modelUsed = modelRecordString,
                 negativeMarkingRatio = activeState.config.negativeMarkingRatio,
@@ -516,6 +588,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val adapter = moshi.adapter(GeneratedQuiz::class.java)
                 val quiz = adapter.fromJson(record.questionsJson)
                 if (quiz != null) {
+                    val writtenAnswersMap = mutableMapOf<Int, String>()
+                    if (record.writtenAnswersJson.isNotBlank()) {
+                        try {
+                            val type = com.squareup.moshi.Types.newParameterizedType(Map::class.java, String::class.java, String::class.java)
+                            val mapAdapter = moshi.adapter<Map<String, String>>(type)
+                            val strMap = mapAdapter.fromJson(record.writtenAnswersJson)
+                            strMap?.forEach { (k, v) ->
+                                k.toIntOrNull()?.let { id -> writtenAnswersMap[id] = v }
+                            }
+                        } catch (e: Exception) { e.printStackTrace() }
+                    }
+                    _writtenAnswers.value = writtenAnswersMap
+
+                    val evaluationsList = mutableListOf<com.example.model.WrittenEvaluation>()
+                    if (record.evaluationsJson.isNotBlank()) {
+                        try {
+                            val listType = com.squareup.moshi.Types.newParameterizedType(List::class.java, com.example.model.WrittenEvaluation::class.java)
+                            val evalsAdapter = moshi.adapter<List<com.example.model.WrittenEvaluation>>(listType)
+                            val parsedEvals = evalsAdapter.fromJson(record.evaluationsJson)
+                            if (parsedEvals != null) evaluationsList.addAll(parsedEvals)
+                        } catch (e: Exception) { e.printStackTrace() }
+                    }
+                    _writtenEvaluations.value = evaluationsList
+
                     _quizState.value = QuizUiState.Result(
                         record = record,
                         quiz = quiz,

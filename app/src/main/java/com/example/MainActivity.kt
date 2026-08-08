@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
         }
 
         super.onCreate(savedInstanceState)
+        com.example.util.AdManager.initialize(this)
         enableEdgeToEdge()
         val initialRoute = intent?.getStringExtra("EXTRA_NAVIGATE_ROUTE")
         setContent {

@@ -105,6 +105,8 @@ fun ResultScreen(
     val record = resultState.record
     val quiz = resultState.quiz
     val userAnswers = resultState.userAnswers
+    val writtenAnswers by viewModel.writtenAnswers.collectAsState()
+    val writtenEvaluationsState by viewModel.writtenEvaluations.collectAsState()
 
     // Animated Score & Accuracy
     val accuracy = record.accuracyPercentage
@@ -364,7 +366,7 @@ fun ResultScreen(
                 )
             }
 
-            // Question Review Items
+            // Question Review Items (MCQs)
             itemsIndexed(
                 items = quiz.questions,
                 key = { index, question -> "${question.id}_$index" }
@@ -380,6 +382,22 @@ fun ResultScreen(
                     isCorrect = isCorrect,
                     isUnattempted = isUnattempted,
                     onToggleBookmark = { viewModel.toggleBookmark(question) }
+                )
+            }
+
+            // Written Question Review Items
+            itemsIndexed(
+                items = quiz.writtenQuestions,
+                key = { index, question -> "written_${question.id}_$index" }
+            ) { index, question ->
+                val writtenAns = writtenAnswers[question.id] ?: ""
+                val eval = writtenEvaluationsState.find { it.questionId == question.id }
+
+                ReviewWrittenCard(
+                    index = index + 1,
+                    question = question,
+                    userAnswer = writtenAns,
+                    evaluation = eval
                 )
             }
 
@@ -646,6 +664,157 @@ fun ReviewQuestionCard(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ReviewWrittenCard(
+    index: Int,
+    question: com.example.model.WrittenQuestion,
+    userAnswer: String?,
+    evaluation: com.example.model.WrittenEvaluation?
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = CircleShape
+                ) {
+                    Text(
+                        text = "Written Q$index",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+
+                if (evaluation != null) {
+                    Surface(
+                        color = if (evaluation.percentage >= 70f) Color(0xFF10B981).copy(alpha = 0.15f)
+                                else if (evaluation.percentage >= 40f) Color(0xFFF59E0B).copy(alpha = 0.15f)
+                                else Color(0xFFEF4444).copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "Score: %.1f / %d (%.0f%%)".format(evaluation.marksObtained, evaluation.maxMarks, evaluation.percentage),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (evaluation.percentage >= 70f) Color(0xFF10B981)
+                                    else if (evaluation.percentage >= 40f) Color(0xFFD97706)
+                                    else Color(0xFFEF4444),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = question.question,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "Your Answer:",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (!userAnswer.isNullOrBlank()) userAnswer else "[No answer submitted]",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (!userAnswer.isNullOrBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (evaluation != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (evaluation.feedback.isNotBlank()) {
+                    Text(
+                        text = "AI Feedback: ${evaluation.feedback}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (evaluation.correctKeyPoints.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "✓ Key points covered: ${evaluation.correctKeyPoints.joinToString(", ")}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF10B981),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                if (evaluation.missingKeyPoints.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "✗ Key points missed: ${evaluation.missingKeyPoints.joinToString(", ")}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFEF4444),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                if (evaluation.suggestedImprovement.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "💡 Suggestion: ${evaluation.suggestedImprovement}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            if (question.suggestedAnswer.isNotBlank()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "Model Answer / Key Reference:",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = question.suggestedAnswer,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             }

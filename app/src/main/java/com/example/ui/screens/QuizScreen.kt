@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -254,8 +255,13 @@ fun QuizScreen(
 
         is QuizUiState.Active -> {
             val quiz = currentState.quiz
-            val questions = quiz.questions
-            if (questions.isEmpty()) {
+            val mcqQuestions = quiz.questions
+            val writtenQuestions = quiz.writtenQuestions
+            val totalMcqs = mcqQuestions.size
+            val totalWritten = writtenQuestions.size
+            val totalQuestions = totalMcqs + totalWritten
+
+            if (totalQuestions == 0) {
                 Scaffold(
                     topBar = {
                         TopAppBar(
@@ -281,27 +287,36 @@ fun QuizScreen(
             }
 
             val userAnswers by viewModel.userAnswers.collectAsState()
+            val writtenAnswers by viewModel.writtenAnswers.collectAsState()
             val markedForReview by viewModel.markedForReview.collectAsState()
             val currentQuestionIndex by viewModel.currentQuestionIndex.collectAsState()
             val bookmarkedQuestions by viewModel.bookmarkedQuestions.collectAsState()
+            val isEvaluating by viewModel.isEvaluating.collectAsState()
+            val evaluationError by viewModel.evaluationError.collectAsState()
 
             var showPaletteSheet by remember { mutableStateOf(false) }
             var showSubmitConfirmation by remember { mutableStateOf(false) }
 
-            val currentQuestion = questions.getOrNull(currentQuestionIndex) ?: questions[0]
-            val totalQuestions = questions.size
+            val isCurrentMcq = currentQuestionIndex < totalMcqs
+            val currentMcq = if (isCurrentMcq) mcqQuestions.getOrNull(currentQuestionIndex) else null
+            val currentWritten = if (!isCurrentMcq) writtenQuestions.getOrNull(currentQuestionIndex - totalMcqs) else null
 
-            val answeredCount = userAnswers.size
-            val unansweredCount = totalQuestions - answeredCount
+            val currentQuestionId = currentMcq?.id ?: currentWritten?.id ?: ""
+
+            val answeredCount = userAnswers.size + writtenAnswers.filterValues { it.isNotBlank() }.size
+            val unansweredCount = (totalQuestions - answeredCount).coerceAtLeast(0)
             val markedCount = markedForReview.size
 
             val isTimerEnabled = currentState.config.timerModeMinutes > 0
 
-            val isCurrentBookmarked = remember(currentQuestion, bookmarkedQuestions) {
-                bookmarkedQuestions.any { it.questionText == currentQuestion.question }
+            val isCurrentBookmarked = remember(currentMcq, currentWritten, bookmarkedQuestions) {
+                if (currentMcq != null) {
+                    bookmarkedQuestions.any { it.questionText == currentMcq.question }
+                } else false
             }
 
             Scaffold(
+                modifier = Modifier.imePadding(),
                 topBar = {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
@@ -463,9 +478,10 @@ fun QuizScreen(
                                     }
                                 }
 
-                                val isMarked = markedForReview.contains(currentQuestion.id)
+                                val activeQuestionId = currentMcq?.id ?: currentWritten?.id ?: 0
+                                val isMarked = markedForReview.contains(activeQuestionId)
                                 OutlinedButton(
-                                    onClick = { viewModel.toggleMarkForReview(currentQuestion.id) },
+                                    onClick = { if (activeQuestionId != 0) viewModel.toggleMarkForReview(activeQuestionId) },
                                     modifier = Modifier.testTag("mark_review_button"),
                                     shape = RoundedCornerShape(10.dp),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
@@ -492,7 +508,14 @@ fun QuizScreen(
                                 }
 
                                 TextButton(
-                                    onClick = { viewModel.clearAnswer(currentQuestion.id) },
+                                    onClick = {
+                                        if (currentMcq != null) {
+                                            viewModel.clearAnswer(currentMcq.id)
+                                        }
+                                        if (currentWritten != null) {
+                                            viewModel.updateWrittenAnswer(currentWritten.id, "")
+                                        }
+                                    },
                                     modifier = Modifier.testTag("clear_button"),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                                 ) {
@@ -546,76 +569,147 @@ fun QuizScreen(
                         .testTag("quiz_screen_container"),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("question_card"),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.primaryContainer,
-                                        shape = RoundedCornerShape(8.dp)
+                    if (isCurrentMcq && currentMcq != null) {
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("question_card"),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            text = "Q${currentQuestionIndex + 1} • ${currentQuestion.difficulty}",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                                        )
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text(
+                                                text = "Q${currentQuestionIndex + 1} • MCQ • ${currentMcq.difficulty}",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = { viewModel.toggleBookmark(currentMcq) },
+                                            modifier = Modifier.testTag("bookmark_button")
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isCurrentBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                                contentDescription = "Bookmark Question",
+                                                tint = if (isCurrentBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
 
-                                    IconButton(
-                                        onClick = { viewModel.toggleBookmark(currentQuestion) },
-                                        modifier = Modifier.testTag("bookmark_button")
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isCurrentBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                            contentDescription = "Bookmark Question",
-                                            tint = if (isCurrentBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    Text(
+                                        text = currentMcq.question,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        lineHeight = 24.sp,
+                                        modifier = Modifier.testTag("question_text")
+                                    )
                                 }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                Text(
-                                    text = currentQuestion.question,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    lineHeight = 24.sp,
-                                    modifier = Modifier.testTag("question_text")
-                                )
                             }
                         }
-                    }
 
-                    itemsIndexed(
-                        items = currentQuestion.options,
-                        key = { _, option -> "${currentQuestion.id}_${option.id}" }
-                    ) { _, option ->
-                        val isSelected = userAnswers[currentQuestion.id] == option.id
+                        itemsIndexed(
+                            items = currentMcq.options,
+                            key = { _, option -> "${currentMcq.id}_${option.id}" }
+                        ) { _, option ->
+                            val isSelected = userAnswers[currentMcq.id] == option.id
 
-                        CbtOptionBox(
-                            optionLetter = option.id,
-                            optionText = option.text,
-                            isSelected = isSelected,
-                            onSelect = { viewModel.selectAnswer(currentQuestion.id, option.id) },
-                            modifier = Modifier.testTag("option_item_${option.id}")
-                        )
+                            CbtOptionBox(
+                                optionLetter = option.id,
+                                optionText = option.text,
+                                isSelected = isSelected,
+                                onSelect = { viewModel.selectAnswer(currentMcq.id, option.id) },
+                                modifier = Modifier.testTag("option_item_${option.id}")
+                            )
+                        }
+                    } else if (currentWritten != null) {
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("written_question_card"),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.secondaryContainer,
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text(
+                                                text = "Q${currentQuestionIndex + 1} • WRITTEN • ${currentWritten.marks} Marks",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                            )
+                                        }
+
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.surfaceVariant,
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text(
+                                                text = "Marks: ${currentWritten.marks}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    Text(
+                                        text = currentWritten.question,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        lineHeight = 24.sp,
+                                        modifier = Modifier.testTag("written_question_text")
+                                    )
+                                }
+                            }
+                        }
+
+                        item {
+                            WrittenAnswerInput(
+                                questionId = currentWritten.id,
+                                initialAnswer = writtenAnswers[currentWritten.id] ?: "",
+                                wordLimit = currentState.config.wordLimit.coerceAtLeast(100),
+                                onAnswerChanged = { newAnswer ->
+                                    viewModel.updateWrittenAnswer(currentWritten.id, newAnswer)
+                                }
+                            )
+                        }
                     }
 
                     item { Spacer(modifier = Modifier.height(16.dp)) }
@@ -661,11 +755,15 @@ fun QuizScreen(
                         ) {
                             items(
                                 count = totalQuestions,
-                                key = { index -> questions[index].id }
+                                key = { index ->
+                                    if (index < totalMcqs) "mcq_${mcqQuestions[index].id}"
+                                    else "written_${writtenQuestions[index - totalMcqs].id}"
+                                }
                             ) { index ->
-                                val q = questions[index]
-                                val isAnswered = userAnswers.containsKey(q.id)
-                                val isMarked = markedForReview.contains(q.id)
+                                val isMcq = index < totalMcqs
+                                val qId = if (isMcq) mcqQuestions[index].id else writtenQuestions[index - totalMcqs].id
+                                val isAnswered = if (isMcq) userAnswers.containsKey(qId) else writtenAnswers[qId]?.isNotBlank() == true
+                                val isMarked = markedForReview.contains(qId)
                                 val isCurrent = index == currentQuestionIndex
 
                                 val bgColor = when {
@@ -818,6 +916,63 @@ fun QuizScreen(
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("Continue Test")
+                        }
+                    }
+                )
+            }
+
+            if (isEvaluating) {
+                AlertDialog(
+                    onDismissRequest = {},
+                    confirmButton = {},
+                    shape = RoundedCornerShape(20.dp),
+                    title = { Text("Evaluating Written Answers", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(48.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 3.5.dp
+                            )
+                            Text(
+                                text = "Gemini AI is grading your written answers, key points, and structure...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                )
+            }
+
+            if (evaluationError != null) {
+                AlertDialog(
+                    onDismissRequest = { viewModel.clearEvaluationError() },
+                    shape = RoundedCornerShape(20.dp),
+                    title = { Text("AI Evaluation Error", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Text(
+                            text = evaluationError ?: "Failed to evaluate written answers. Your answers are safe.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            viewModel.clearEvaluationError()
+                            viewModel.submitTest()
+                        }) {
+                            Text("Retry Evaluation")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.clearEvaluationError() }) {
+                            Text("Edit Answers")
                         }
                     }
                 )
@@ -994,6 +1149,74 @@ fun QuizTimerBadge(
                 fontWeight = FontWeight.Bold,
                 color = timerContentColor
             )
+        }
+    }
+}
+
+@Composable
+fun WrittenAnswerInput(
+    questionId: Int,
+    initialAnswer: String,
+    wordLimit: Int,
+    onAnswerChanged: (String) -> Unit
+) {
+    var text by remember(questionId) { mutableStateOf(initialAnswer) }
+
+    val wordCount = remember(text) {
+        if (text.isBlank()) 0
+        else text.trim().split("\\s+".toRegex()).filter { it.isNotBlank() }.size
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Your Answer",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            androidx.compose.material3.OutlinedTextField(
+                value = text,
+                onValueChange = { newText ->
+                    text = newText
+                    onAnswerChanged(newText)
+                },
+                placeholder = { Text("Type your comprehensive answer here...") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 180.dp)
+                    .testTag("written_answer_input"),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Saved locally",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "$wordCount / $wordLimit words",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (wordCount > wordLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }

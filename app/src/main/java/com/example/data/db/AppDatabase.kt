@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TopicStatEntity::class,
         QuestionBankEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -65,6 +65,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `test_records` ADD COLUMN `examType` TEXT NOT NULL DEFAULT 'MCQ'")
+                db.execSQL("ALTER TABLE `test_records` ADD COLUMN `writtenAnswersJson` TEXT NOT NULL DEFAULT '{}'")
+                db.execSQL("ALTER TABLE `test_records` ADD COLUMN `evaluationsJson` TEXT NOT NULL DEFAULT '{}'")
+
+                db.execSQL("ALTER TABLE `question_bank` ADD COLUMN `questionType` TEXT NOT NULL DEFAULT 'MCQ'")
+                db.execSQL("ALTER TABLE `question_bank` ADD COLUMN `suggestedAnswer` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `question_bank` ADD COLUMN `keyPointsJson` TEXT NOT NULL DEFAULT '[]'")
+                db.execSQL("ALTER TABLE `question_bank` ADD COLUMN `marks` INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -72,7 +85,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "anshu_exam_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance

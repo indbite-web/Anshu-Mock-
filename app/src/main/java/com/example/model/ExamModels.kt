@@ -3,6 +3,12 @@ package com.example.model
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
+enum class ExamType(val displayName: String) {
+    MCQ("MCQ Test"),
+    WRITTEN("Written Test"),
+    MIXED("Mixed Test")
+}
+
 @JsonClass(generateAdapter = true)
 data class McqOption(
     @Json(name = "id") val id: String, // "A", "B", "C", "D"
@@ -22,28 +28,76 @@ data class McqQuestion(
 )
 
 @JsonClass(generateAdapter = true)
+data class WrittenQuestion(
+    @Json(name = "id") val id: Int,
+    @Json(name = "question") val question: String,
+    @Json(name = "marks") val marks: Int = 5,
+    @Json(name = "suggestedAnswer") val suggestedAnswer: String = "",
+    @Json(name = "keyPoints") val keyPoints: List<String> = emptyList(),
+    @Json(name = "topic") val topic: String = "General",
+    @Json(name = "difficulty") val difficulty: String = "Medium",
+    @Json(name = "subject") val subject: String = "General"
+)
+
+@JsonClass(generateAdapter = true)
+data class WrittenEvaluation(
+    @Json(name = "questionId") val questionId: Int,
+    @Json(name = "marksObtained") val marksObtained: Float = 0f,
+    @Json(name = "maxMarks") val maxMarks: Int = 5,
+    @Json(name = "percentage") val percentage: Float = 0f,
+    @Json(name = "feedback") val feedback: String = "",
+    @Json(name = "correctKeyPoints") val correctKeyPoints: List<String> = emptyList(),
+    @Json(name = "missingKeyPoints") val missingKeyPoints: List<String> = emptyList(),
+    @Json(name = "suggestedImprovement") val suggestedImprovement: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+data class WrittenTestEvaluationContainer(
+    @Json(name = "evaluations") val evaluations: List<WrittenEvaluation> = emptyList()
+)
+
+@JsonClass(generateAdapter = true)
 data class GeneratedQuiz(
     @Json(name = "title") val title: String = "AI Generated Practice Test",
     @Json(name = "examName") val examName: String = "General Practice",
     @Json(name = "subject") val subject: String = "General",
     @Json(name = "sourceTopic") val sourceTopic: String = "Study Material",
     @Json(name = "difficulty") val difficulty: String = "Medium",
-    @Json(name = "questions") val questions: List<McqQuestion>
+    @Json(name = "examType") val examType: String = "MCQ", // MCQ, WRITTEN, MIXED
+    @Json(name = "questions") val questions: List<McqQuestion> = emptyList(),
+    @Json(name = "writtenQuestions") val writtenQuestions: List<WrittenQuestion> = emptyList()
+)
+
+@JsonClass(generateAdapter = true)
+data class WrittenTypeConfig(
+    val enabled: Boolean = true,
+    val count: Int = 3,
+    val marksEach: Int = 2,
+    val wordLimit: Int = 50
 )
 
 data class TestConfig(
+    val examType: ExamType = ExamType.MCQ,
     val targetExam: String = "General Practice",
     val subject: String = "General",
     val topic: String = "General",
     val customInstruction: String = "",
     val questionCount: Int = 10,
-    val difficulty: String = "Medium", // Easy, Medium, Hard, Very Hard
+    val mcqQuestionCount: Int = 5,
+    val writtenQuestionCount: Int = 3,
+    val shortWrittenConfig: WrittenTypeConfig = WrittenTypeConfig(enabled = true, count = 3, marksEach = 2, wordLimit = 50),
+    val mediumWrittenConfig: WrittenTypeConfig = WrittenTypeConfig(enabled = false, count = 2, marksEach = 5, wordLimit = 100),
+    val longWrittenConfig: WrittenTypeConfig = WrittenTypeConfig(enabled = false, count = 1, marksEach = 10, wordLimit = 250),
+    val difficulty: String = "Medium", // Easy, Medium, Hard, Mixed
     val style: String = "Mixed", // Direct, Conceptual, Confusing Options, Statement Based, Match the Following, Exam Style, Mixed
     val language: String = "Hindi", // Hindi, English, Hindi + English
     val naturalPrompt: String = "",
     val strictSourceMode: Boolean = true,
     val timerModeMinutes: Int = 10, // 0 = No timer, >0 = Total time
     val negativeMarkingRatio: Float = 0.25f, // 0.0, 0.25, 0.33, 0.50
+    val marksPerQuestion: Int = 5, // 2, 5, 10, Custom
+    val answerLengthType: String = "Medium", // Short, Medium, Long, Custom
+    val wordLimit: Int = 200,
     val imageBase64List: List<String> = emptyList()
 )
 
@@ -57,13 +111,18 @@ data class TestResult(
     val percentage: Float,
     val accuracyPercentage: Float,
     val gradeLabel: String,
-    val timeTakenSeconds: Long
+    val timeTakenSeconds: Long,
+    val examType: ExamType = ExamType.MCQ,
+    val mcqScore: Float = 0f,
+    val mcqMaxScore: Float = 0f,
+    val writtenScore: Float = 0f,
+    val writtenMaxScore: Float = 0f
 )
 
 @JsonClass(generateAdapter = true)
 data class AppBackupData(
     @Json(name = "exportTimestamp") val exportTimestamp: Long = System.currentTimeMillis(),
-    @Json(name = "appVersion") val appVersion: String = "1.0",
+    @Json(name = "appVersion") val appVersion: String = "1.1.0",
     @Json(name = "questionBank") val questionBank: List<com.example.data.db.QuestionBankEntity> = emptyList(),
     @Json(name = "testRecords") val testRecords: List<com.example.data.db.TestRecordEntity> = emptyList(),
     @Json(name = "wrongQuestions") val wrongQuestions: List<com.example.data.db.WrongQuestionEntity> = emptyList(),

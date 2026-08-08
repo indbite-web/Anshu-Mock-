@@ -21,6 +21,10 @@ data class QuestionBankEntity(
     val masteryState: String = "New", // New, Learning, Weak, Improving, Mastered
     val timesAnswered: Int = 0,
     val timesCorrect: Int = 0,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val questionType: String = "MCQ", // MCQ or WRITTEN
+    val suggestedAnswer: String = "",
+    val keyPointsJson: String = "[]",
+    val marks: Int = 1
 )
 

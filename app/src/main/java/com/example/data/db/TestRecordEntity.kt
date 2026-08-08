@@ -21,5 +21,8 @@ data class TestRecordEntity(
     val createdAt: Long = System.currentTimeMillis(),
     val questionsJson: String, // Full JSON representation for re-opening
     val timerLimitMinutes: Int = 0,
-    val autoSubmitted: Boolean = false
+    val autoSubmitted: Boolean = false,
+    val examType: String = "MCQ",
+    val writtenAnswersJson: String = "{}",
+    val evaluationsJson: String = "{}"
 )
