@@ -27,12 +27,14 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.foundation.layout.PaddingValues
@@ -95,6 +97,8 @@ fun HomeScreen(
     val profileImageUri by viewModel.profileImageUri.collectAsState()
     val targetExam by viewModel.primaryExam.collectAsState()
     val dailyGoalTarget by viewModel.dailyGoalTarget.collectAsState()
+    val savedNotes by viewModel.savedStudyNotes.collectAsState()
+    val savedFlashcards by viewModel.savedFlashcards.collectAsState()
     var showApiKeyRequiredDialog by remember { mutableStateOf(false) }
 
     // REAL DATA Calculations
@@ -415,10 +419,10 @@ fun HomeScreen(
                 }
             }
 
-            // 4. Secondary Actions Grid Section Title
+            // 5. Secondary Actions Grid Section Title
             item {
                 Text(
-                    text = "Study & Review",
+                    text = "Practice & Review",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground

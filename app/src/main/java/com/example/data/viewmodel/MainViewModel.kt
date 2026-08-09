@@ -8,6 +8,8 @@ import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.db.BookmarkEntity
+import com.example.data.db.FlashcardEntity
+import com.example.data.db.StudyNoteEntity
 import com.example.data.db.TestRecordEntity
 import com.example.data.db.TopicStatEntity
 import com.example.data.db.WrongQuestionEntity
@@ -15,7 +17,11 @@ import com.example.data.remote.GeminiClient
 import com.example.data.remote.SupportedModel
 import com.example.data.repository.ExamRepository
 import com.example.data.repository.UserPreferencesRepository
+import com.example.model.GeneratedDoubtResponse
+import com.example.model.GeneratedFlashcardItem
+import com.example.model.GeneratedFlashcardSet
 import com.example.model.GeneratedQuiz
+import com.example.model.GeneratedStudyNotes
 import com.example.model.McqQuestion
 import com.example.model.TestConfig
 import com.squareup.moshi.Moshi
@@ -775,6 +781,263 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearQuestionBank() {
         viewModelScope.launch {
             examRepo.dao.deleteAllQuestionBankItems()
+        }
+    }
+
+    // ==================================================
+    // AI STUDY TOOLS (v1.2.0 Upgrade)
+    // ==================================================
+
+    val savedStudyNotes: StateFlow<List<StudyNoteEntity>> = examRepo.dao.getAllStudyNotes()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val savedFlashcards: StateFlow<List<FlashcardEntity>> = examRepo.dao.getAllFlashcards()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    // --- Study Notes ---
+    private val _isGeneratingNotes = MutableStateFlow(false)
+    val isGeneratingNotes: StateFlow<Boolean> = _isGeneratingNotes.asStateFlow()
+
+    private val _notesGenerationStatus = MutableStateFlow("")
+    val notesGenerationStatus: StateFlow<String> = _notesGenerationStatus.asStateFlow()
+
+    private val _generatedNotes = MutableStateFlow<GeneratedStudyNotes?>(null)
+    val generatedNotes: StateFlow<GeneratedStudyNotes?> = _generatedNotes.asStateFlow()
+
+    fun generateNotes(
+        subject: String,
+        topic: String,
+        customInstructions: String,
+        onSuccess: (GeneratedStudyNotes) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (_isGeneratingNotes.value) return
+        _isGeneratingNotes.value = true
+        _notesGenerationStatus.value = "Connecting to Gemini..."
+        viewModelScope.launch {
+            try {
+                val apiKey = prefsRepo.userApiKey.value
+                val modelId = prefsRepo.selectedModel.value
+                val lang = prefsRepo.defaultLanguage.value
+                val notes = examRepo.generateStudyNotes(
+                    subject = subject,
+                    topic = topic,
+                    customInstructions = customInstructions,
+                    language = lang,
+                    preferredModelId = modelId,
+                    autoFallback = true,
+                    apiKey = apiKey,
+                    onStatusUpdate = { _notesGenerationStatus.value = it }
+                )
+                _generatedNotes.value = notes
+                onSuccess(notes)
+            } catch (e: Exception) {
+                onError(e.localizedMessage ?: "Failed to generate study notes.")
+            } finally {
+                _isGeneratingNotes.value = false
+            }
+        }
+    }
+
+    fun saveStudyNote(
+        subject: String,
+        topic: String,
+        notes: GeneratedStudyNotes,
+        customInstructions: String,
+        onSaved: () -> Unit
+    ) {
+        viewModelScope.launch {
+            val moshiAdapter = Moshi.Builder().build().adapter(List::class.java)
+            val noteEntity = StudyNoteEntity(
+                subject = subject,
+                topic = topic,
+                title = if (notes.title.isNotBlank()) notes.title else "$topic Study Notes",
+                summary = notes.summary,
+                importantConceptsJson = moshiAdapter.toJson(notes.importantConcepts),
+                keyDefinitionsJson = moshiAdapter.toJson(notes.keyDefinitions),
+                examPointsJson = moshiAdapter.toJson(notes.examPoints),
+                examplesJson = moshiAdapter.toJson(notes.examples),
+                quickRevisionJson = moshiAdapter.toJson(notes.quickRevision),
+                customInstructions = customInstructions,
+                language = prefsRepo.defaultLanguage.value
+            )
+            examRepo.dao.insertStudyNote(noteEntity)
+            onSaved()
+        }
+    }
+
+    fun deleteStudyNote(id: Long) {
+        viewModelScope.launch {
+            examRepo.dao.deleteStudyNoteById(id)
+        }
+    }
+
+    // --- Flashcards ---
+    private val _isGeneratingFlashcards = MutableStateFlow(false)
+    val isGeneratingFlashcards: StateFlow<Boolean> = _isGeneratingFlashcards.asStateFlow()
+
+    private val _flashcardsGenerationStatus = MutableStateFlow("")
+    val flashcardsGenerationStatus: StateFlow<String> = _flashcardsGenerationStatus.asStateFlow()
+
+    private val _generatedFlashcardSet = MutableStateFlow<GeneratedFlashcardSet?>(null)
+    val generatedFlashcardSet: StateFlow<GeneratedFlashcardSet?> = _generatedFlashcardSet.asStateFlow()
+
+    fun generateFlashcards(
+        subject: String,
+        topic: String,
+        count: Int,
+        onSuccess: (GeneratedFlashcardSet) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (_isGeneratingFlashcards.value) return
+        _isGeneratingFlashcards.value = true
+        _flashcardsGenerationStatus.value = "Preparing flashcards..."
+        viewModelScope.launch {
+            try {
+                val apiKey = prefsRepo.userApiKey.value
+                val modelId = prefsRepo.selectedModel.value
+                val lang = prefsRepo.defaultLanguage.value
+                val cardSet = examRepo.generateFlashcards(
+                    subject = subject,
+                    topic = topic,
+                    count = count,
+                    language = lang,
+                    preferredModelId = modelId,
+                    autoFallback = true,
+                    apiKey = apiKey,
+                    onStatusUpdate = { _flashcardsGenerationStatus.value = it }
+                )
+                _generatedFlashcardSet.value = cardSet
+                onSuccess(cardSet)
+            } catch (e: Exception) {
+                onError(e.localizedMessage ?: "Failed to generate flashcards.")
+            } finally {
+                _isGeneratingFlashcards.value = false
+            }
+        }
+    }
+
+    fun saveFlashcards(
+        subject: String,
+        topic: String,
+        cards: List<GeneratedFlashcardItem>,
+        onSaved: () -> Unit
+    ) {
+        viewModelScope.launch {
+            val entities = cards.map {
+                FlashcardEntity(
+                    subject = subject,
+                    topic = topic,
+                    frontText = it.frontText,
+                    backText = it.backText,
+                    masteryState = "New",
+                    timesReviewed = 0
+                )
+            }
+            examRepo.dao.insertFlashcards(entities)
+            onSaved()
+        }
+    }
+
+    fun updateFlashcardMastery(card: FlashcardEntity, newState: String) {
+        viewModelScope.launch {
+            val updated = card.copy(
+                masteryState = newState,
+                timesReviewed = card.timesReviewed + 1
+            )
+            examRepo.dao.updateFlashcard(updated)
+        }
+    }
+
+    fun deleteFlashcard(id: Long) {
+        viewModelScope.launch {
+            examRepo.dao.deleteFlashcardById(id)
+        }
+    }
+
+    fun deleteFlashcardSet(subject: String, topic: String) {
+        viewModelScope.launch {
+            examRepo.dao.deleteFlashcardsBySubjectAndTopic(subject, topic)
+        }
+    }
+
+    // --- AI Doubt Solver ---
+    private val _isSolvingDoubt = MutableStateFlow(false)
+    val isSolvingDoubt: StateFlow<Boolean> = _isSolvingDoubt.asStateFlow()
+
+    private val _doubtStatus = MutableStateFlow("")
+    val doubtStatus: StateFlow<String> = _doubtStatus.asStateFlow()
+
+    fun solveDoubt(
+        subject: String,
+        topic: String,
+        doubt: String,
+        onSuccess: (GeneratedDoubtResponse) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (_isSolvingDoubt.value) return
+        _isSolvingDoubt.value = true
+        _doubtStatus.value = "Consulting AI..."
+        viewModelScope.launch {
+            try {
+                val apiKey = prefsRepo.userApiKey.value
+                val modelId = prefsRepo.selectedModel.value
+                val lang = prefsRepo.defaultLanguage.value
+                val resp = examRepo.solveDoubt(
+                    subject = subject,
+                    topic = topic,
+                    doubt = doubt,
+                    language = lang,
+                    preferredModelId = modelId,
+                    autoFallback = true,
+                    apiKey = apiKey,
+                    onStatusUpdate = { _doubtStatus.value = it }
+                )
+                onSuccess(resp)
+            } catch (e: Exception) {
+                onError(e.localizedMessage ?: "Failed to get doubt answer.")
+            } finally {
+                _isSolvingDoubt.value = false
+            }
+        }
+    }
+
+    fun explainQuestion(
+        questionText: String,
+        optionsText: String,
+        correctAnswer: String,
+        explanation: String,
+        userQuery: String,
+        onResult: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val apiKey = prefsRepo.userApiKey.value
+                val modelId = prefsRepo.selectedModel.value
+                val lang = prefsRepo.defaultLanguage.value
+                val result = examRepo.explainQuestion(
+                    questionText = questionText,
+                    optionsText = optionsText,
+                    correctAnswer = correctAnswer,
+                    explanation = explanation,
+                    userQuery = userQuery,
+                    language = lang,
+                    preferredModelId = modelId,
+                    autoFallback = true,
+                    apiKey = apiKey
+                )
+                onResult(result)
+            } catch (e: Exception) {
+                onResult(e.localizedMessage ?: "Error explaining question.")
+            }
         }
     }
 }

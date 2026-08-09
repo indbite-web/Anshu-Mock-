@@ -43,6 +43,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -123,6 +131,10 @@ fun ResultScreen(
             animationSpec = tween(900, easing = FastOutSlowInEasing)
         )
     }
+
+    var activeExplainQuestion by remember { mutableStateOf<McqQuestion?>(null) }
+    var aiExplanationResult by remember { mutableStateOf<String?>(null) }
+    var isGeneratingAiExplain by remember { mutableStateOf(false) }
 
     // Determine performance label
     val (gradeLabel, gradeColor) = when {
@@ -381,7 +393,23 @@ fun ResultScreen(
                     userAnswer = userAns,
                     isCorrect = isCorrect,
                     isUnattempted = isUnattempted,
-                    onToggleBookmark = { viewModel.toggleBookmark(question) }
+                    onToggleBookmark = { viewModel.toggleBookmark(question) },
+                    onAskAiExplain = { q ->
+                        activeExplainQuestion = q
+                        aiExplanationResult = null
+                        isGeneratingAiExplain = true
+                        viewModel.explainQuestion(
+                            questionText = q.question,
+                            optionsText = q.options.joinToString("\n") { "${it.id}: ${it.text}" },
+                            correctAnswer = q.correctAnswer,
+                            explanation = q.explanation,
+                            userQuery = "Explain this question step-by-step.",
+                            onResult = { res ->
+                                aiExplanationResult = res
+                                isGeneratingAiExplain = false
+                            }
+                        )
+                    }
                 )
             }
 
@@ -475,6 +503,60 @@ fun ResultScreen(
             }
         }
     }
+
+    // AI Explanation Dialog
+    activeExplainQuestion?.let { q ->
+        AlertDialog(
+            onDismissRequest = { activeExplainQuestion = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Psychology, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("AI Step-by-Step Explanation", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Box(modifier = Modifier.heightIn(max = 400.dp)) {
+                    if (isGeneratingAiExplain) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator()
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("Gemini is breaking down this question...", style = MaterialTheme.typography.bodySmall)
+                        }
+                    } else {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            item {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text("QUESTION", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(q.question, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                            item {
+                                Text(
+                                    aiExplanationResult ?: "No explanation returned.",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { activeExplainQuestion = null }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -501,7 +583,8 @@ fun ReviewQuestionCard(
     userAnswer: String?,
     isCorrect: Boolean,
     isUnattempted: Boolean,
-    onToggleBookmark: () -> Unit
+    onToggleBookmark: () -> Unit,
+    onAskAiExplain: (McqQuestion) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -666,6 +749,17 @@ fun ReviewQuestionCard(
                         }
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { onAskAiExplain(question) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(Icons.Default.Psychology, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Ask AI to Explain", style = MaterialTheme.typography.labelMedium)
             }
         }
     }

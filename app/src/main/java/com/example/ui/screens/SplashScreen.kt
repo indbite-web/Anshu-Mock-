@@ -44,12 +44,11 @@ fun SplashScreen(
     onSplashFinished: () -> Unit
 ) {
     val context = LocalContext.current
-    val isDark = isSystemInDarkTheme()
 
-    // Color definitions for light & dark theme
-    val backgroundColor = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-    val primaryTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
-    val secondaryTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+    // Color definitions for light theme
+    val backgroundColor = Color(0xFFF8FAFC)
+    val primaryTextColor = Color(0xFF0F172A)
+    val secondaryTextColor = Color(0xFF64748B)
 
     // Check system animator duration scale for reduced motion accessibility
     val isReducedMotion = remember {

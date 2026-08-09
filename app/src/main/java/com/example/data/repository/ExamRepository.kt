@@ -1119,21 +1119,355 @@ data class GenerationResult(
         )
     }
 
+    suspend fun generateStudyNotes(
+        subject: String,
+        topic: String,
+        customInstructions: String,
+        language: String,
+        preferredModelId: String,
+        autoFallback: Boolean,
+        apiKey: String,
+        onStatusUpdate: (String) -> Unit = {}
+    ): com.example.model.GeneratedStudyNotes = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank()) {
+            throw IllegalArgumentException("Gemini API key required. Please configure your API key in Settings → AI Configuration.")
+        }
+
+        val systemPrompt = """
+            You are an expert examination study guide creator and educational content designer.
+            Your task is to generate structured study material for the given subject and topic.
+
+            SUBJECT: $subject
+            TOPIC: $topic
+            LANGUAGE: $language
+            ${if (customInstructions.isNotBlank()) "CUSTOM INSTRUCTIONS: $customInstructions" else ""}
+
+            CRITICAL RULES:
+            1. Language Requirement: $language.
+            2. Output MUST be a clean, study-friendly structure. Do NOT make response bloated.
+            3. Response MUST be valid JSON strictly matching this schema:
+
+            {
+              "title": "$topic Study Notes",
+              "summary": "Clear, concise 2-3 sentence overview of $topic...",
+              "importantConcepts": [
+                "Concept 1 with brief explanation",
+                "Concept 2 with brief explanation"
+              ],
+              "keyDefinitions": [
+                "Term 1: Concise definition",
+                "Term 2: Concise definition"
+              ],
+              "examPoints": [
+                "High-yield point 1 commonly asked in exams",
+                "High-yield point 2 commonly asked in exams"
+              ],
+              "examples": [
+                "Real-world example or practical illustration"
+              ],
+              "quickRevision": [
+                "Key bullet point for 1-minute quick revision before exam"
+              ]
+            }
+        """.trimIndent()
+
+        val request = GenerateContentRequest(
+            contents = listOf(Content(parts = listOf(Part(text = "Please generate structured study notes for $topic ($subject) in JSON format.")))),
+            generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.3f),
+            systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
+        )
+
+        val initialModel = SupportedModel.fromModelId(preferredModelId)
+        val allowlist = SupportedModel.FREE_MODEL_ALLOWLIST
+        val modelsToTry = if (autoFallback) {
+            val list = mutableListOf(initialModel)
+            allowlist.forEach { fallback -> if (fallback != initialModel && !list.contains(fallback)) list.add(fallback) }
+            list
+        } else listOf(initialModel)
+
+        var lastError: String? = null
+        for (model in modelsToTry) {
+            if (!allowlist.contains(model)) continue
+            onStatusUpdate("Generating study notes using ${model.displayName}...")
+            val response = try {
+                GeminiClient.apiService.generateContent(model.modelId, apiKey, request)
+            } catch (e: Exception) {
+                lastError = formatGeminiException(e, model.displayName)
+                continue
+            }
+
+            if (response.isSuccessful && response.body()?.candidates?.isNotEmpty() == true) {
+                val rawText = response.body()?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
+                val jsonString = extractJsonSubstring(rawText)
+                if (jsonString.isNotBlank()) {
+                    try {
+                        val adapter = moshi.adapter(com.example.model.GeneratedStudyNotes::class.java)
+                        val result = adapter.fromJson(jsonString)
+                        if (result != null && result.title.isNotBlank()) return@withContext result
+                    } catch (e: Exception) {
+                        android.util.Log.w("ExamRepository", "Error parsing study notes JSON", e)
+                    }
+                }
+            } else {
+                val code = response.code()
+                val errBody = response.errorBody()?.string() ?: ""
+                lastError = formatGeminiApiHttpError(code, errBody, model.displayName)
+            }
+        }
+        throw IllegalStateException(lastError ?: "Failed to generate study notes.")
+    }
+
+    suspend fun generateFlashcards(
+        subject: String,
+        topic: String,
+        count: Int = 8,
+        language: String,
+        preferredModelId: String,
+        autoFallback: Boolean,
+        apiKey: String,
+        onStatusUpdate: (String) -> Unit = {}
+    ): com.example.model.GeneratedFlashcardSet = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank()) {
+            throw IllegalArgumentException("Gemini API key required.")
+        }
+
+        val systemPrompt = """
+            You are an expert educational flashcard creator.
+            Generate $count high-yield study flashcards.
+
+            SUBJECT: $subject
+            TOPIC: $topic
+            LANGUAGE: $language
+
+            CRITICAL RULES:
+            1. Language: $language.
+            2. Front: Clear question, concept, or term.
+            3. Back: Direct, accurate answer, definition, or explanation.
+            4. JSON Output Schema (STRICT):
+
+            {
+              "subject": "$subject",
+              "topic": "$topic",
+              "flashcards": [
+                {
+                  "frontText": "Front question/concept text",
+                  "backText": "Back answer/explanation text"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val request = GenerateContentRequest(
+            contents = listOf(Content(parts = listOf(Part(text = "Please generate $count flashcards for $topic ($subject) in JSON format.")))),
+            generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.3f),
+            systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
+        )
+
+        val initialModel = SupportedModel.fromModelId(preferredModelId)
+        val allowlist = SupportedModel.FREE_MODEL_ALLOWLIST
+        val modelsToTry = if (autoFallback) {
+            val list = mutableListOf(initialModel)
+            allowlist.forEach { fallback -> if (fallback != initialModel && !list.contains(fallback)) list.add(fallback) }
+            list
+        } else listOf(initialModel)
+
+        var lastError: String? = null
+        for (model in modelsToTry) {
+            if (!allowlist.contains(model)) continue
+            onStatusUpdate("Generating flashcards using ${model.displayName}...")
+            val response = try {
+                GeminiClient.apiService.generateContent(model.modelId, apiKey, request)
+            } catch (e: Exception) {
+                lastError = formatGeminiException(e, model.displayName)
+                continue
+            }
+
+            if (response.isSuccessful && response.body()?.candidates?.isNotEmpty() == true) {
+                val rawText = response.body()?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
+                val jsonString = extractJsonSubstring(rawText)
+                if (jsonString.isNotBlank()) {
+                    try {
+                        val adapter = moshi.adapter(com.example.model.GeneratedFlashcardSet::class.java)
+                        val result = adapter.fromJson(jsonString)
+                        if (result != null && result.flashcards.isNotEmpty()) return@withContext result
+                    } catch (e: Exception) {
+                        android.util.Log.w("ExamRepository", "Error parsing flashcards JSON", e)
+                    }
+                }
+            } else {
+                val code = response.code()
+                val errBody = response.errorBody()?.string() ?: ""
+                lastError = formatGeminiApiHttpError(code, errBody, model.displayName)
+            }
+        }
+        throw IllegalStateException(lastError ?: "Failed to generate flashcards.")
+    }
+
+    suspend fun solveDoubt(
+        subject: String,
+        topic: String,
+        doubt: String,
+        language: String,
+        preferredModelId: String,
+        autoFallback: Boolean,
+        apiKey: String,
+        onStatusUpdate: (String) -> Unit = {}
+    ): com.example.model.GeneratedDoubtResponse = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank()) {
+            throw IllegalArgumentException("Gemini API key required.")
+        }
+
+        val systemPrompt = """
+            You are an educational AI Doubt Solver.
+            Answer the student's question accurately, educationally, and concisely.
+
+            ${if (subject.isNotBlank()) "SUBJECT: $subject" else ""}
+            ${if (topic.isNotBlank()) "TOPIC: $topic" else ""}
+            LANGUAGE: $language
+
+            CRITICAL RULES:
+            1. Language: $language.
+            2. Be direct and educational.
+            3. Return JSON format strictly matching:
+
+            {
+              "directAnswer": "Direct 1-2 sentence core answer",
+              "simpleExplanation": "Simple, accessible explanation",
+              "detailedExplanation": "Deeper step-by-step breakdown or context",
+              "examPoint": "Key exam tip or takeaway related to this question"
+            }
+        """.trimIndent()
+
+        val request = GenerateContentRequest(
+            contents = listOf(Content(parts = listOf(Part(text = "Doubt: $doubt")))),
+            generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.2f),
+            systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
+        )
+
+        val initialModel = SupportedModel.fromModelId(preferredModelId)
+        val allowlist = SupportedModel.FREE_MODEL_ALLOWLIST
+        val modelsToTry = if (autoFallback) {
+            val list = mutableListOf(initialModel)
+            allowlist.forEach { fallback -> if (fallback != initialModel && !list.contains(fallback)) list.add(fallback) }
+            list
+        } else listOf(initialModel)
+
+        var lastError: String? = null
+        for (model in modelsToTry) {
+            if (!allowlist.contains(model)) continue
+            onStatusUpdate("Solving doubt using ${model.displayName}...")
+            val response = try {
+                GeminiClient.apiService.generateContent(model.modelId, apiKey, request)
+            } catch (e: Exception) {
+                lastError = formatGeminiException(e, model.displayName)
+                continue
+            }
+
+            if (response.isSuccessful && response.body()?.candidates?.isNotEmpty() == true) {
+                val rawText = response.body()?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
+                val jsonString = extractJsonSubstring(rawText)
+                if (jsonString.isNotBlank()) {
+                    try {
+                        val adapter = moshi.adapter(com.example.model.GeneratedDoubtResponse::class.java)
+                        val result = adapter.fromJson(jsonString)
+                        if (result != null) return@withContext result
+                    } catch (e: Exception) {
+                        android.util.Log.w("ExamRepository", "Error parsing doubt JSON", e)
+                    }
+                }
+            } else {
+                val code = response.code()
+                val errBody = response.errorBody()?.string() ?: ""
+                lastError = formatGeminiApiHttpError(code, errBody, model.displayName)
+            }
+        }
+        throw IllegalStateException(lastError ?: "Failed to solve doubt.")
+    }
+
+    suspend fun explainQuestion(
+        questionText: String,
+        optionsText: String,
+        correctAnswer: String,
+        explanation: String,
+        userQuery: String,
+        language: String,
+        preferredModelId: String,
+        autoFallback: Boolean,
+        apiKey: String
+    ): String = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank()) {
+            throw IllegalArgumentException("Gemini API key required.")
+        }
+
+        val promptText = """
+            QUESTION:
+            $questionText
+
+            OPTIONS:
+            $optionsText
+
+            CORRECT ANSWER:
+            $correctAnswer
+
+            ${if (explanation.isNotBlank()) "EXISTING EXPLANATION:\n$explanation" else ""}
+
+            USER INQUIRY:
+            ${if (userQuery.isNotBlank()) userQuery else "Please explain step-by-step why the correct answer is $correctAnswer."}
+
+            LANGUAGE: $language
+        """.trimIndent()
+
+        val systemPrompt = "You are an expert exam tutor explaining a practice question clearly and encouragingly to a student in $language."
+
+        val request = GenerateContentRequest(
+            contents = listOf(Content(parts = listOf(Part(text = promptText)))),
+            generationConfig = GenerationConfig(temperature = 0.3f),
+            systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
+        )
+
+        val initialModel = SupportedModel.fromModelId(preferredModelId)
+        val allowlist = SupportedModel.FREE_MODEL_ALLOWLIST
+        val modelsToTry = if (autoFallback) {
+            val list = mutableListOf(initialModel)
+            allowlist.forEach { fallback -> if (fallback != initialModel && !list.contains(fallback)) list.add(fallback) }
+            list
+        } else listOf(initialModel)
+
+        for (model in modelsToTry) {
+            if (!allowlist.contains(model)) continue
+            val response = try {
+                GeminiClient.apiService.generateContent(model.modelId, apiKey, request)
+            } catch (e: Exception) {
+                continue
+            }
+
+            if (response.isSuccessful && response.body()?.candidates?.isNotEmpty() == true) {
+                val text = response.body()?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                if (!text.isNullOrBlank()) return@withContext text
+            }
+        }
+        return@withContext "Unable to generate explanation right now. Please check your connection and API key."
+    }
+
     suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
         val qBank = dao.getAllQuestionBankItemsList()
         val records = dao.getAllTestRecordsList()
         val wrongs = dao.getUnmasteredWrongQuestionsList()
         val bookmarks = dao.getAllBookmarksList()
         val stats = dao.getAllTopicStatsList()
+        val notes = dao.getAllStudyNotesList()
+        val flashcards = dao.getAllFlashcardsList()
 
         val backup = AppBackupData(
             exportTimestamp = System.currentTimeMillis(),
-            appVersion = "1.1.0",
+            appVersion = "1.2.0",
             questionBank = qBank,
             testRecords = records,
             wrongQuestions = wrongs,
             bookmarks = bookmarks,
-            topicStats = stats
+            topicStats = stats,
+            studyNotes = notes,
+            flashcards = flashcards
         )
 
         moshi.adapter(AppBackupData::class.java).toJson(backup)
@@ -1148,6 +1482,8 @@ data class GenerationResult(
         if (backup.wrongQuestions.isNotEmpty()) dao.insertWrongQuestions(backup.wrongQuestions)
         if (backup.bookmarks.isNotEmpty()) dao.insertBookmarks(backup.bookmarks)
         if (backup.topicStats.isNotEmpty()) dao.insertTopicStats(backup.topicStats)
+        if (backup.studyNotes.isNotEmpty()) dao.insertStudyNotes(backup.studyNotes)
+        if (backup.flashcards.isNotEmpty()) dao.insertFlashcards(backup.flashcards)
     }
 
     private fun formatGeminiException(e: Exception, modelName: String): String {

@@ -9,9 +9,12 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -36,8 +39,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.data.viewmodel.MainViewModel
 import com.example.model.TestConfig
+import com.example.ui.screens.AiDoubtScreen
 import com.example.ui.screens.BookmarksScreen
 import com.example.ui.screens.CreateTestScreen
+import com.example.ui.screens.FlashcardsScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PerformanceScreen
@@ -46,6 +51,7 @@ import com.example.ui.screens.QuizScreen
 import com.example.ui.screens.ResultScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SplashScreen
+import com.example.ui.screens.StudyNotesScreen
 import com.example.ui.screens.TestHistoryScreen
 import com.example.ui.screens.WeakTopicsScreen
 import com.example.ui.screens.WrongQuestionsScreen
@@ -56,10 +62,9 @@ fun AnshuExamApp(
     viewModel: MainViewModel,
     initialRoute: String? = null
 ) {
-    val isDark = isSystemInDarkTheme()
     var showSplash by rememberSaveable { mutableStateOf(true) }
 
-    AnshuExamTheme(darkTheme = isDark) {
+    AnshuExamTheme(darkTheme = false) {
         Crossfade(
             targetState = showSplash,
             animationSpec = tween(400),
@@ -86,7 +91,7 @@ fun AnshuExamApp(
                     }
                 }
 
-                val topLevelRoutes = listOf("home", "test_history", "settings")
+                val topLevelRoutes = listOf("home", "study_notes", "flashcards", "ai_doubt", "settings")
                 val showBottomBar = currentRoute in topLevelRoutes
 
                 Scaffold(
@@ -106,7 +111,7 @@ fun AnshuExamApp(
                                         }
                                     },
                                     icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                                    label = { Text("Home") },
+                                    label = { Text("Home", maxLines = 1) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -117,16 +122,56 @@ fun AnshuExamApp(
                                 )
 
                                 NavigationBarItem(
-                                    selected = currentRoute == "test_history",
+                                    selected = currentRoute == "study_notes",
                                     onClick = {
-                                        if (currentRoute != "test_history") {
-                                            navController.navigate("test_history") {
+                                        if (currentRoute != "study_notes") {
+                                            navController.navigate("study_notes") {
                                                 popUpTo("home")
                                             }
                                         }
                                     },
-                                    icon = { Icon(Icons.Default.History, contentDescription = "History") },
-                                    label = { Text("History") },
+                                    icon = { Icon(Icons.Default.Description, contentDescription = "AI Notes") },
+                                    label = { Text("AI Notes", maxLines = 1) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+
+                                NavigationBarItem(
+                                    selected = currentRoute == "flashcards",
+                                    onClick = {
+                                        if (currentRoute != "flashcards") {
+                                            navController.navigate("flashcards") {
+                                                popUpTo("home")
+                                            }
+                                        }
+                                    },
+                                    icon = { Icon(Icons.Default.Style, contentDescription = "Flashcards") },
+                                    label = { Text("Flashcards", maxLines = 1) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+
+                                NavigationBarItem(
+                                    selected = currentRoute == "ai_doubt",
+                                    onClick = {
+                                        if (currentRoute != "ai_doubt") {
+                                            navController.navigate("ai_doubt") {
+                                                popUpTo("home")
+                                            }
+                                        }
+                                    },
+                                    icon = { Icon(Icons.Default.Psychology, contentDescription = "AI Solver") },
+                                    label = { Text("AI Solver", maxLines = 1) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -146,7 +191,7 @@ fun AnshuExamApp(
                                         }
                                     },
                                     icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                                    label = { Text("Settings") },
+                                    label = { Text("Settings", maxLines = 1) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -314,6 +359,27 @@ fun AnshuExamApp(
                                         popUpTo("home")
                                     }
                                 }
+                            )
+                        }
+
+                        composable("study_notes") {
+                            StudyNotesScreen(
+                                viewModel = viewModel,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("flashcards") {
+                            FlashcardsScreen(
+                                viewModel = viewModel,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("ai_doubt") {
+                            AiDoubtScreen(
+                                viewModel = viewModel,
+                                onNavigateBack = { navController.popBackStack() }
                             )
                         }
                     }

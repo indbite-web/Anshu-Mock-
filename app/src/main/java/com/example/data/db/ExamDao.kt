@@ -130,4 +130,51 @@ interface ExamDao {
 
     @Query("SELECT COUNT(*) FROM question_bank")
     suspend fun getQuestionBankCount(): Int
+
+    // Study Notes
+    @Query("SELECT * FROM study_notes ORDER BY createdAt DESC")
+    fun getAllStudyNotes(): Flow<List<StudyNoteEntity>>
+
+    @Query("SELECT * FROM study_notes ORDER BY createdAt DESC")
+    suspend fun getAllStudyNotesList(): List<StudyNoteEntity>
+
+    @Query("SELECT * FROM study_notes WHERE id = :id")
+    suspend fun getStudyNoteById(id: Long): StudyNoteEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStudyNote(note: StudyNoteEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStudyNotes(notes: List<StudyNoteEntity>)
+
+    @Query("DELETE FROM study_notes WHERE id = :id")
+    suspend fun deleteStudyNoteById(id: Long)
+
+    @Query("DELETE FROM study_notes")
+    suspend fun deleteAllStudyNotes()
+
+    // Flashcards
+    @Query("SELECT * FROM flashcards ORDER BY createdAt DESC")
+    fun getAllFlashcards(): Flow<List<FlashcardEntity>>
+
+    @Query("SELECT * FROM flashcards ORDER BY createdAt DESC")
+    suspend fun getAllFlashcardsList(): List<FlashcardEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFlashcard(card: FlashcardEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFlashcards(cards: List<FlashcardEntity>)
+
+    @Update
+    suspend fun updateFlashcard(card: FlashcardEntity)
+
+    @Query("DELETE FROM flashcards WHERE id = :id")
+    suspend fun deleteFlashcardById(id: Long)
+
+    @Query("DELETE FROM flashcards WHERE subject = :subject AND topic = :topic")
+    suspend fun deleteFlashcardsBySubjectAndTopic(subject: String, topic: String)
+
+    @Query("DELETE FROM flashcards")
+    suspend fun deleteAllFlashcards()
 }

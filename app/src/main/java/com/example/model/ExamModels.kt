@@ -94,7 +94,7 @@ data class TestConfig(
     val naturalPrompt: String = "",
     val strictSourceMode: Boolean = true,
     val timerModeMinutes: Int = 10, // 0 = No timer, >0 = Total time
-    val negativeMarkingRatio: Float = 0.25f, // 0.0, 0.25, 0.33, 0.50
+    val negativeMarkingRatio: Float = 0.0f, // 0.0 (None), 0.25, 0.33, 0.50
     val marksPerQuestion: Int = 5, // 2, 5, 10, Custom
     val answerLengthType: String = "Medium", // Short, Medium, Long, Custom
     val wordLimit: Int = 200,
@@ -119,13 +119,50 @@ data class TestResult(
     val writtenMaxScore: Float = 0f
 )
 
+// --- Study Notes Models ---
+@JsonClass(generateAdapter = true)
+data class GeneratedStudyNotes(
+    @Json(name = "title") val title: String = "",
+    @Json(name = "summary") val summary: String = "",
+    @Json(name = "importantConcepts") val importantConcepts: List<String> = emptyList(),
+    @Json(name = "keyDefinitions") val keyDefinitions: List<String> = emptyList(),
+    @Json(name = "examPoints") val examPoints: List<String> = emptyList(),
+    @Json(name = "examples") val examples: List<String> = emptyList(),
+    @Json(name = "quickRevision") val quickRevision: List<String> = emptyList()
+)
+
+// --- Flashcard Models ---
+@JsonClass(generateAdapter = true)
+data class GeneratedFlashcardItem(
+    @Json(name = "frontText") val frontText: String = "",
+    @Json(name = "backText") val backText: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+data class GeneratedFlashcardSet(
+    @Json(name = "subject") val subject: String = "",
+    @Json(name = "topic") val topic: String = "",
+    @Json(name = "flashcards") val flashcards: List<GeneratedFlashcardItem> = emptyList()
+)
+
+// --- AI Doubt Models ---
+@JsonClass(generateAdapter = true)
+data class GeneratedDoubtResponse(
+    @Json(name = "directAnswer") val directAnswer: String = "",
+    @Json(name = "simpleExplanation") val simpleExplanation: String = "",
+    @Json(name = "detailedExplanation") val detailedExplanation: String = "",
+    @Json(name = "examPoint") val examPoint: String = ""
+)
+
 @JsonClass(generateAdapter = true)
 data class AppBackupData(
     @Json(name = "exportTimestamp") val exportTimestamp: Long = System.currentTimeMillis(),
-    @Json(name = "appVersion") val appVersion: String = "1.1.0",
+    @Json(name = "appVersion") val appVersion: String = "1.2.0",
     @Json(name = "questionBank") val questionBank: List<com.example.data.db.QuestionBankEntity> = emptyList(),
     @Json(name = "testRecords") val testRecords: List<com.example.data.db.TestRecordEntity> = emptyList(),
     @Json(name = "wrongQuestions") val wrongQuestions: List<com.example.data.db.WrongQuestionEntity> = emptyList(),
     @Json(name = "bookmarks") val bookmarks: List<com.example.data.db.BookmarkEntity> = emptyList(),
-    @Json(name = "topicStats") val topicStats: List<com.example.data.db.TopicStatEntity> = emptyList()
+    @Json(name = "topicStats") val topicStats: List<com.example.data.db.TopicStatEntity> = emptyList(),
+    @Json(name = "studyNotes") val studyNotes: List<com.example.data.db.StudyNoteEntity> = emptyList(),
+    @Json(name = "flashcards") val flashcards: List<com.example.data.db.FlashcardEntity> = emptyList()
 )

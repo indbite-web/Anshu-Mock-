@@ -79,7 +79,7 @@ class UserPreferencesRepository(context: Context) {
     val defaultLanguage: StateFlow<String> = _defaultLanguage.asStateFlow()
 
     private val _defaultNegativeMarking = MutableStateFlow(
-        prefs.getFloat("default_negative_marking", 0.25f)
+        prefs.getFloat("default_negative_marking", 0.0f)
     )
     val defaultNegativeMarking: StateFlow<Float> = _defaultNegativeMarking.asStateFlow()
 

@@ -132,7 +132,7 @@ fun CreateTestScreen(
     var selectedLanguage by remember(defaultLanguage) { mutableStateOf(defaultLanguage) }
     var strictSourceMode by remember(defaultStrictSource) { mutableStateOf(defaultStrictSource) }
     var timerMinutes by remember(defaultTimerMinutes) { mutableIntStateOf(defaultTimerMinutes) }
-    var negativeMarkingRatio by remember(defaultNegativeMarking) { mutableFloatStateOf(defaultNegativeMarking) }
+    var negativeMarkingRatio by remember { mutableFloatStateOf(0.0f) }
 
     var targetExam by remember(preferredExam) { mutableStateOf(if (preferredExam.isNotBlank()) preferredExam else "General Practice") }
     var customExamName by remember { mutableStateOf("") }
@@ -146,6 +146,9 @@ fun CreateTestScreen(
     var showCustomTimerDialog by remember { mutableStateOf(false) }
     var customTimerInput by remember { mutableStateOf("") }
     var customTimerError by remember { mutableStateOf<String?>(null) }
+    var showCustomNegativeDialog by remember { mutableStateOf(false) }
+    var customNegativeInput by remember { mutableStateOf("") }
+    var customNegativeError by remember { mutableStateOf<String?>(null) }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
 
     var selectedExamType by remember { mutableStateOf(com.example.model.ExamType.MCQ) }
@@ -1253,6 +1256,78 @@ fun CreateTestScreen(
                                 }
                             }
 
+                            // Negative Marking Configuration
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Negative Marking",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+
+                                val isCustomNegative = negativeMarkingRatio !in listOf(0.0f, 0.25f, 0.33f, 0.50f)
+
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    val negativePresets = listOf(
+                                        0.0f to "None",
+                                        0.25f to "0.25",
+                                        0.33f to "0.33",
+                                        0.50f to "0.50"
+                                    )
+                                    negativePresets.forEach { (ratio, label) ->
+                                        val isSelected = negativeMarkingRatio == ratio
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { negativeMarkingRatio = ratio },
+                                            label = { Text(label, fontSize = 12.sp, maxLines = 1, softWrap = false) },
+                                            modifier = Modifier.testTag("negative_chip_$label"),
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                enabled = true,
+                                                selected = isSelected,
+                                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                                selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                                borderWidth = 1.dp,
+                                                selectedBorderWidth = 1.5.dp
+                                            )
+                                        )
+                                    }
+
+                                    val customText = if (isCustomNegative) "Custom ($negativeMarkingRatio)" else "Custom"
+                                    FilterChip(
+                                        selected = isCustomNegative,
+                                        onClick = {
+                                            customNegativeInput = if (isCustomNegative) "$negativeMarkingRatio" else ""
+                                            customNegativeError = null
+                                            showCustomNegativeDialog = true
+                                        },
+                                        label = { Text(customText, fontSize = 12.sp, maxLines = 1, softWrap = false) },
+                                        modifier = Modifier.testTag("negative_chip_custom"),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            enabled = true,
+                                            selected = isCustomNegative,
+                                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                            selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                            borderWidth = 1.dp,
+                                            selectedBorderWidth = 1.5.dp
+                                        )
+                                    )
+                                }
+                            }
+
                             // INLINE VALIDATION ERROR BANNER
                             if (configValidationError != null) {
                                 Surface(
@@ -1660,6 +1735,70 @@ fun CreateTestScreen(
             dismissButton = {
                 OutlinedButton(
                     onClick = { showCustomTimerDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showCustomNegativeDialog) {
+        AlertDialog(
+            onDismissRequest = { showCustomNegativeDialog = false },
+            title = {
+                Text(
+                    text = "Custom Negative Marking",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = customNegativeInput,
+                        onValueChange = {
+                            customNegativeInput = it
+                            customNegativeError = null
+                        },
+                        label = { Text("Negative ratio (e.g. 0.20)") },
+                        placeholder = { Text("0.20") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = customNegativeError != null,
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("custom_negative_input")
+                    )
+                    if (customNegativeError != null) {
+                        Text(
+                            text = customNegativeError!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val inputVal = customNegativeInput.trim()
+                        val valFloat = inputVal.toFloatOrNull()
+                        if (valFloat == null || valFloat < 0.0f || valFloat > 10.0f) {
+                            customNegativeError = "Please enter a non-negative value (e.g. 0.20 or 0.50)."
+                        } else {
+                            negativeMarkingRatio = valFloat
+                            showCustomNegativeDialog = false
+                            customNegativeError = null
+                        }
+                    },
+                    modifier = Modifier.testTag("set_negative_button")
+                ) {
+                    Text("Set Ratio")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showCustomNegativeDialog = false }
                 ) {
                     Text("Cancel")
                 }

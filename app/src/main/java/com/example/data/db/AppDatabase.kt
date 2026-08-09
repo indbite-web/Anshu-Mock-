@@ -13,9 +13,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WrongQuestionEntity::class,
         BookmarkEntity::class,
         TopicStatEntity::class,
-        QuestionBankEntity::class
+        QuestionBankEntity::class,
+        StudyNoteEntity::class,
+        FlashcardEntity::class
     ],
-    version = 5,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -78,6 +80,45 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `study_notes` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `subject` TEXT NOT NULL,
+                        `topic` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `summary` TEXT NOT NULL,
+                        `importantConceptsJson` TEXT NOT NULL DEFAULT '[]',
+                        `keyDefinitionsJson` TEXT NOT NULL DEFAULT '[]',
+                        `examPointsJson` TEXT NOT NULL DEFAULT '[]',
+                        `examplesJson` TEXT NOT NULL DEFAULT '[]',
+                        `quickRevisionJson` TEXT NOT NULL DEFAULT '[]',
+                        `customInstructions` TEXT NOT NULL DEFAULT '',
+                        `language` TEXT NOT NULL DEFAULT 'English',
+                        `createdAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `flashcards` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `subject` TEXT NOT NULL,
+                        `topic` TEXT NOT NULL,
+                        `frontText` TEXT NOT NULL,
+                        `backText` TEXT NOT NULL,
+                        `masteryState` TEXT NOT NULL DEFAULT 'New',
+                        `timesReviewed` INTEGER NOT NULL DEFAULT 0,
+                        `createdAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -85,7 +126,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "anshu_exam_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 INSTANCE = instance
                 instance
