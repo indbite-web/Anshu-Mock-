@@ -73,6 +73,11 @@ class UserPreferencesRepository(context: Context) {
     )
     val defaultDifficulty: StateFlow<String> = _defaultDifficulty.asStateFlow()
 
+    private val _appLanguage = MutableStateFlow(
+        prefs.getString("app_language", "English") ?: "English"
+    )
+    val appLanguage: StateFlow<String> = _appLanguage.asStateFlow()
+
     private val _defaultLanguage = MutableStateFlow(
         prefs.getString("default_language", "Hindi") ?: "Hindi"
     )
@@ -97,6 +102,11 @@ class UserPreferencesRepository(context: Context) {
         prefs.getBoolean("onboarding_completed", false)
     )
     val onboardingCompleted: StateFlow<Boolean> = _onboardingCompleted.asStateFlow()
+
+    private val _permissionsOnboardingCompleted = MutableStateFlow(
+        prefs.getBoolean("permissions_onboarding_completed", false)
+    )
+    val permissionsOnboardingCompleted: StateFlow<Boolean> = _permissionsOnboardingCompleted.asStateFlow()
 
     private val _displayName = MutableStateFlow(
         prefs.getString("display_name", "") ?: ""
@@ -159,6 +169,11 @@ class UserPreferencesRepository(context: Context) {
         _onboardingCompleted.value = completed
     }
 
+    fun setPermissionsOnboardingCompleted(completed: Boolean) {
+        prefs.edit().putBoolean("permissions_onboarding_completed", completed).apply()
+        _permissionsOnboardingCompleted.value = completed
+    }
+
     fun setDisplayName(name: String) {
         val trimmed = name.trim()
         prefs.edit().putString("display_name", trimmed).apply()
@@ -208,6 +223,12 @@ class UserPreferencesRepository(context: Context) {
     fun setDefaultDifficulty(difficulty: String) {
         prefs.edit().putString("default_difficulty", difficulty).apply()
         _defaultDifficulty.value = difficulty
+    }
+
+    fun setAppLanguage(language: String) {
+        val lang = if (language.equals("हिंदी", ignoreCase = true) || language.equals("hi", ignoreCase = true)) "हिंदी" else "English"
+        prefs.edit().putString("app_language", lang).apply()
+        _appLanguage.value = lang
     }
 
     fun setDefaultLanguage(language: String) {

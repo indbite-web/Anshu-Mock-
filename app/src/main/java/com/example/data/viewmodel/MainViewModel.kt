@@ -65,14 +65,40 @@ sealed class QuizUiState {
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     val examRepo = ExamRepository(application)
     val prefsRepo = UserPreferencesRepository(application)
+    val updateManager = com.example.data.update.UpdateManager.getInstance(application)
+    val updateState: StateFlow<com.example.data.update.UpdateState> = updateManager.updateState
+
+    init {
+        try {
+            // Automatically check for updates in background on app launch (throttled)
+            updateManager.checkForUpdates(isManual = false)
+            com.example.worker.UpdateScheduler.schedule(application)
+        } catch (e: Throwable) {
+            android.util.Log.e("MainViewModel", "Failed to perform initial update check or schedule background worker", e)
+        }
+    }
+
+    fun checkForUpdatesManually() {
+        updateManager.checkForUpdates(isManual = true)
+    }
 
     val userApiKey: StateFlow<String> = prefsRepo.userApiKey
     val onboardingCompleted: StateFlow<Boolean> = prefsRepo.onboardingCompleted
+    val permissionsOnboardingCompleted: StateFlow<Boolean> = prefsRepo.permissionsOnboardingCompleted
+
+    fun setPermissionsOnboardingCompleted(completed: Boolean) {
+        prefsRepo.setPermissionsOnboardingCompleted(completed)
+    }
     val displayName: StateFlow<String> = prefsRepo.displayName
     val profileImageUri: StateFlow<String> = prefsRepo.profileImageUri
     val primaryExam: StateFlow<String> = prefsRepo.preferredExam
     val additionalExams: StateFlow<String> = prefsRepo.additionalExams
+    val appLanguage: StateFlow<String> = prefsRepo.appLanguage
     val preferredLanguage: StateFlow<String> = prefsRepo.defaultLanguage
+
+    fun setAppLanguage(language: String) {
+        prefsRepo.setAppLanguage(language)
+    }
     val dailyGoalTarget: StateFlow<Int> = prefsRepo.dailyGoalTarget
 
     // Study Reminders State
@@ -199,6 +225,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
+    )
+
+    val questionsAttemptedToday: StateFlow<Int> = testHistory.map { history ->
+        val todayCal = Calendar.getInstance()
+        val todayYear = todayCal.get(Calendar.YEAR)
+        val todayDay = todayCal.get(Calendar.DAY_OF_YEAR)
+
+        val cal = Calendar.getInstance()
+        history.sumOf { record ->
+            cal.timeInMillis = record.createdAt
+            if (cal.get(Calendar.YEAR) == todayYear && cal.get(Calendar.DAY_OF_YEAR) == todayDay) {
+                record.questionCount
+            } else {
+                0
+            }
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = 0
+    )
+
+    val overallAccuracy: StateFlow<Float> = testHistory.map { history ->
+        val totalQuestionsSolved = history.sumOf { it.questionCount }
+        val totalCorrect = history.sumOf { it.correctCount }
+        if (totalQuestionsSolved > 0) (totalCorrect.toFloat() / totalQuestionsSolved) * 100f else 0f
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = 0f
     )
 
     val currentStreak: StateFlow<Int> = testHistory.map { history ->
@@ -816,6 +872,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         subject: String,
         topic: String,
         customInstructions: String,
+        language: String = "English",
         onSuccess: (GeneratedStudyNotes) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -826,12 +883,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val apiKey = prefsRepo.userApiKey.value
                 val modelId = prefsRepo.selectedModel.value
-                val lang = prefsRepo.defaultLanguage.value
+                val chosenLang = if (language.isNotBlank()) language else prefsRepo.defaultLanguage.value.ifBlank { "English" }
                 val notes = examRepo.generateStudyNotes(
                     subject = subject,
                     topic = topic,
                     customInstructions = customInstructions,
-                    language = lang,
+                    language = chosenLang,
                     preferredModelId = modelId,
                     autoFallback = true,
                     apiKey = apiKey,
@@ -852,6 +909,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         topic: String,
         notes: GeneratedStudyNotes,
         customInstructions: String,
+        language: String = "English",
         onSaved: () -> Unit
     ) {
         viewModelScope.launch {
@@ -867,7 +925,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 examplesJson = moshiAdapter.toJson(notes.examples),
                 quickRevisionJson = moshiAdapter.toJson(notes.quickRevision),
                 customInstructions = customInstructions,
-                language = prefsRepo.defaultLanguage.value
+                language = if (language.isNotBlank()) language else prefsRepo.defaultLanguage.value.ifBlank { "English" }
             )
             examRepo.dao.insertStudyNote(noteEntity)
             onSaved()
@@ -894,6 +952,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         subject: String,
         topic: String,
         count: Int,
+        language: String = "English",
         onSuccess: (GeneratedFlashcardSet) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -904,12 +963,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val apiKey = prefsRepo.userApiKey.value
                 val modelId = prefsRepo.selectedModel.value
-                val lang = prefsRepo.defaultLanguage.value
+                val chosenLang = if (language.isNotBlank()) language else prefsRepo.defaultLanguage.value.ifBlank { "English" }
                 val cardSet = examRepo.generateFlashcards(
                     subject = subject,
                     topic = topic,
                     count = count,
-                    language = lang,
+                    language = chosenLang,
                     preferredModelId = modelId,
                     autoFallback = true,
                     apiKey = apiKey,
@@ -980,6 +1039,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         subject: String,
         topic: String,
         doubt: String,
+        language: String = "English",
         onSuccess: (GeneratedDoubtResponse) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -990,12 +1050,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val apiKey = prefsRepo.userApiKey.value
                 val modelId = prefsRepo.selectedModel.value
-                val lang = prefsRepo.defaultLanguage.value
+                val chosenLang = if (language.isNotBlank()) language else prefsRepo.defaultLanguage.value.ifBlank { "English" }
                 val resp = examRepo.solveDoubt(
                     subject = subject,
                     topic = topic,
                     doubt = doubt,
-                    language = lang,
+                    language = chosenLang,
                     preferredModelId = modelId,
                     autoFallback = true,
                     apiKey = apiKey,

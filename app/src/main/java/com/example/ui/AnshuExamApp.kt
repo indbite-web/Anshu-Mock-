@@ -25,6 +25,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.components.UpdateDialog
+import com.example.data.update.UpdateState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -55,6 +58,16 @@ import com.example.ui.screens.StudyNotesScreen
 import com.example.ui.screens.TestHistoryScreen
 import com.example.ui.screens.WeakTopicsScreen
 import com.example.ui.screens.WrongQuestionsScreen
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistryOwner
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.example.R
+import com.example.util.LocaleHelper
 import com.example.ui.theme.AnshuExamTheme
 
 @Composable
@@ -63,23 +76,77 @@ fun AnshuExamApp(
     initialRoute: String? = null
 ) {
     var showSplash by rememberSaveable { mutableStateOf(true) }
+    val appLanguage by viewModel.appLanguage.collectAsState()
+    val context = LocalContext.current
+    val localizedContext = remember(appLanguage, context) {
+        LocaleHelper.createLocalizedContext(context, appLanguage)
+    }
+    val currentActivityResultOwner = LocalActivityResultRegistryOwner.current
+    val activityResultOwner = remember(context, currentActivityResultOwner) {
+        currentActivityResultOwner ?: run {
+            var current: Context? = context
+            while (current != null) {
+                if (current is ActivityResultRegistryOwner) return@run current
+                if (current is ContextWrapper) {
+                    current = current.baseContext
+                } else {
+                    break
+                }
+            }
+            null
+        }
+    }
 
-    AnshuExamTheme(darkTheme = false) {
-        Crossfade(
-            targetState = showSplash,
-            animationSpec = tween(400),
-            label = "splash_crossfade"
-        ) { isSplashShowing ->
-            if (isSplashShowing) {
-                SplashScreen(
-                    onSplashFinished = { showSplash = false }
-                )
-            } else {
-                val navController = rememberNavController()
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute = navBackStackEntry?.destination?.route
+    ProvideLocals(
+        localizedContext = localizedContext,
+        activityResultOwner = activityResultOwner
+    ) {
+        AnshuExamTheme(darkTheme = false) {
+            Crossfade(
+                targetState = showSplash,
+                animationSpec = tween(400),
+                label = "splash_crossfade"
+            ) { isSplashShowing ->
+                if (isSplashShowing) {
+                    SplashScreen(
+                        onSplashFinished = { showSplash = false }
+                    )
+                } else {
+                    val navController = rememberNavController()
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route
 
-                val isOnboardingCompleted by viewModel.onboardingCompleted.collectAsState()
+                    val isOnboardingCompleted by viewModel.onboardingCompleted.collectAsState()
+                    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+
+                    UpdateDialog(
+                        updateState = updateState,
+                        onDismiss = {
+                            (updateState as? UpdateState.Available)?.let {
+                                viewModel.updateManager.dismissUpdate(it.updateInfo)
+                            } ?: viewModel.updateManager.resetState()
+                        },
+                        onDownload = {
+                            (updateState as? UpdateState.Available)?.let {
+                                viewModel.updateManager.startDownload(it.updateInfo)
+                            }
+                        },
+                        onAllowPermission = {
+                            viewModel.updateManager.openSettingsForPermission()
+                        },
+                        onRetryInstall = {
+                            (updateState as? UpdateState.Downloaded)?.let {
+                                viewModel.updateManager.retryInstallation(it.updateInfo, it.apkFile)
+                            } ?: (updateState as? UpdateState.PermissionRequired)?.let {
+                                viewModel.updateManager.retryInstallation(it.updateInfo, it.apkFile)
+                            }
+                        },
+                        onRetryDownload = {
+                            (updateState as? UpdateState.Error)?.updateInfo?.let {
+                                viewModel.updateManager.startDownload(it)
+                            }
+                        }
+                    )
 
                 LaunchedEffect(initialRoute, isOnboardingCompleted) {
                     if (!initialRoute.isNullOrBlank() && initialRoute != "home" && isOnboardingCompleted) {
@@ -110,8 +177,8 @@ fun AnshuExamApp(
                                             }
                                         }
                                     },
-                                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                                    label = { Text("Home", maxLines = 1) },
+                                    icon = { Icon(Icons.Default.Home, contentDescription = stringResource(R.string.nav_home)) },
+                                    label = { Text(stringResource(R.string.nav_home), maxLines = 1) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -130,8 +197,8 @@ fun AnshuExamApp(
                                             }
                                         }
                                     },
-                                    icon = { Icon(Icons.Default.Description, contentDescription = "AI Notes") },
-                                    label = { Text("AI Notes", maxLines = 1) },
+                                    icon = { Icon(Icons.Default.Description, contentDescription = stringResource(R.string.nav_ai_notes)) },
+                                    label = { Text(stringResource(R.string.nav_ai_notes), maxLines = 1) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -150,8 +217,8 @@ fun AnshuExamApp(
                                             }
                                         }
                                     },
-                                    icon = { Icon(Icons.Default.Style, contentDescription = "Flashcards") },
-                                    label = { Text("Flashcards", maxLines = 1) },
+                                    icon = { Icon(Icons.Default.Style, contentDescription = stringResource(R.string.nav_flashcards)) },
+                                    label = { Text(stringResource(R.string.nav_flashcards), maxLines = 1) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -170,8 +237,8 @@ fun AnshuExamApp(
                                             }
                                         }
                                     },
-                                    icon = { Icon(Icons.Default.Psychology, contentDescription = "AI Solver") },
-                                    label = { Text("AI Solver", maxLines = 1) },
+                                    icon = { Icon(Icons.Default.Psychology, contentDescription = stringResource(R.string.nav_ai_solver)) },
+                                    label = { Text(stringResource(R.string.nav_ai_solver), maxLines = 1) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -190,8 +257,8 @@ fun AnshuExamApp(
                                             }
                                         }
                                     },
-                                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                                    label = { Text("Settings", maxLines = 1) },
+                                    icon = { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.nav_settings)) },
+                                    label = { Text(stringResource(R.string.nav_settings), maxLines = 1) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -386,6 +453,27 @@ fun AnshuExamApp(
                 }
             }
         }
+    }
+}
+}
+
+@Composable
+private fun ProvideLocals(
+    localizedContext: Context,
+    activityResultOwner: ActivityResultRegistryOwner?,
+    content: @Composable () -> Unit
+) {
+    if (activityResultOwner != null) {
+        CompositionLocalProvider(
+            LocalContext provides localizedContext,
+            LocalActivityResultRegistryOwner provides activityResultOwner,
+            content = content
+        )
+    } else {
+        CompositionLocalProvider(
+            LocalContext provides localizedContext,
+            content = content
+        )
     }
 }
 

@@ -1133,17 +1133,23 @@ data class GenerationResult(
             throw IllegalArgumentException("Gemini API key required. Please configure your API key in Settings → AI Configuration.")
         }
 
+        val langInstruction = when (language.trim().lowercase()) {
+            "hindi" -> "Generate the content in clear Hindi using Devanagari script."
+            "hinglish" -> "Generate the content in natural Roman Hindi/Hinglish."
+            else -> "Generate the content completely in English."
+        }
+
         val systemPrompt = """
             You are an expert examination study guide creator and educational content designer.
             Your task is to generate structured study material for the given subject and topic.
 
             SUBJECT: $subject
             TOPIC: $topic
-            LANGUAGE: $language
+            LANGUAGE DIRECTIVE: $langInstruction
             ${if (customInstructions.isNotBlank()) "CUSTOM INSTRUCTIONS: $customInstructions" else ""}
 
             CRITICAL RULES:
-            1. Language Requirement: $language.
+            1. Language Requirement: $langInstruction
             2. Output MUST be a clean, study-friendly structure. Do NOT make response bloated.
             3. Response MUST be valid JSON strictly matching this schema:
 
@@ -1172,7 +1178,7 @@ data class GenerationResult(
         """.trimIndent()
 
         val request = GenerateContentRequest(
-            contents = listOf(Content(parts = listOf(Part(text = "Please generate structured study notes for $topic ($subject) in JSON format.")))),
+            contents = listOf(Content(parts = listOf(Part(text = "Please generate structured study notes for $topic ($subject) in JSON format. $langInstruction")))),
             generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.3f),
             systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
         )
@@ -1231,16 +1237,22 @@ data class GenerationResult(
             throw IllegalArgumentException("Gemini API key required.")
         }
 
+        val langInstruction = when (language.trim().lowercase()) {
+            "hindi" -> "Generate the content in clear Hindi using Devanagari script."
+            "hinglish" -> "Generate the content in natural Roman Hindi/Hinglish."
+            else -> "Generate the content completely in English."
+        }
+
         val systemPrompt = """
             You are an expert educational flashcard creator.
             Generate $count high-yield study flashcards.
 
             SUBJECT: $subject
             TOPIC: $topic
-            LANGUAGE: $language
+            LANGUAGE DIRECTIVE: $langInstruction
 
             CRITICAL RULES:
-            1. Language: $language.
+            1. Language: $langInstruction.
             2. Front: Clear question, concept, or term.
             3. Back: Direct, accurate answer, definition, or explanation.
             4. JSON Output Schema (STRICT):
@@ -1258,7 +1270,7 @@ data class GenerationResult(
         """.trimIndent()
 
         val request = GenerateContentRequest(
-            contents = listOf(Content(parts = listOf(Part(text = "Please generate $count flashcards for $topic ($subject) in JSON format.")))),
+            contents = listOf(Content(parts = listOf(Part(text = "Please generate $count flashcards for $topic ($subject) in JSON format. $langInstruction")))),
             generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.3f),
             systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
         )
@@ -1317,16 +1329,22 @@ data class GenerationResult(
             throw IllegalArgumentException("Gemini API key required.")
         }
 
+        val langInstruction = when (language.trim().lowercase()) {
+            "hindi" -> "Generate the content in clear Hindi using Devanagari script."
+            "hinglish" -> "Generate the content in natural Roman Hindi/Hinglish."
+            else -> "Generate the content completely in English."
+        }
+
         val systemPrompt = """
             You are an educational AI Doubt Solver.
             Answer the student's question accurately, educationally, and concisely.
 
             ${if (subject.isNotBlank()) "SUBJECT: $subject" else ""}
             ${if (topic.isNotBlank()) "TOPIC: $topic" else ""}
-            LANGUAGE: $language
+            LANGUAGE DIRECTIVE: $langInstruction
 
             CRITICAL RULES:
-            1. Language: $language.
+            1. Language: $langInstruction.
             2. Be direct and educational.
             3. Return JSON format strictly matching:
 
@@ -1339,7 +1357,7 @@ data class GenerationResult(
         """.trimIndent()
 
         val request = GenerateContentRequest(
-            contents = listOf(Content(parts = listOf(Part(text = "Doubt: $doubt")))),
+            contents = listOf(Content(parts = listOf(Part(text = "Doubt: $doubt. $langInstruction")))),
             generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.2f),
             systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
         )

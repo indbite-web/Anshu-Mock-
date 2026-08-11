@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,6 +49,7 @@ fun StudyNotesScreen(
     val generationStatus by viewModel.notesGenerationStatus.collectAsState()
     val generatedNotes by viewModel.generatedNotes.collectAsState()
 
+    var selectedLanguage by remember { mutableStateOf("English") }
     var subjectInput by remember { mutableStateOf("") }
     var topicInput by remember { mutableStateOf("") }
     var customInstructionsInput by remember { mutableStateOf("") }
@@ -56,6 +59,12 @@ fun StudyNotesScreen(
     val primaryExam by viewModel.primaryExam.collectAsState()
     val preferredLanguage by viewModel.preferredLanguage.collectAsState()
 
+    LaunchedEffect(preferredLanguage) {
+        if (preferredLanguage.isNotBlank()) {
+            selectedLanguage = preferredLanguage
+        }
+    }
+
     // Pre-fill default subject/exam if available
     LaunchedEffect(primaryExam) {
         if (subjectInput.isBlank() && primaryExam.isNotBlank()) {
@@ -64,11 +73,12 @@ fun StudyNotesScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0.dp),
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("AI Study Notes", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.notes_title), fontWeight = FontWeight.Bold)
                         Text(
                             "Structured summaries & exam key points",
                             style = MaterialTheme.typography.labelSmall,
@@ -86,7 +96,8 @@ fun StudyNotesScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
-                )
+                ),
+                windowInsets = WindowInsets(0.dp)
             )
         }
     ) { paddingValues ->
@@ -189,16 +200,32 @@ fun StudyNotesScreen(
                     }
 
                     item {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
-                                "Language: $preferredLanguage",
+                                text = "Language",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.secondary
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("English", "Hindi", "Hinglish").forEach { lang ->
+                                    val isSelected = selectedLanguage.equals(lang, ignoreCase = true)
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedLanguage = lang },
+                                        label = { Text(lang, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("notes_lang_chip_$lang"),
+                                        leadingIcon = if (isSelected) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                        } else null
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -230,6 +257,7 @@ fun StudyNotesScreen(
                                     subject = subjectInput.ifBlank { "General" },
                                     topic = topicInput,
                                     customInstructions = customInstructionsInput,
+                                    language = selectedLanguage,
                                     onSuccess = {
                                         Toast.makeText(context, "Study Notes Generated!", Toast.LENGTH_SHORT).show()
                                     },
@@ -272,6 +300,7 @@ fun StudyNotesScreen(
                                         topic = topicInput,
                                         notes = notes,
                                         customInstructions = customInstructionsInput,
+                                        language = selectedLanguage,
                                         onSaved = {
                                             Toast.makeText(context, "Saved to Offline Notes!", Toast.LENGTH_SHORT).show()
                                             selectedTabIndex = 1
@@ -283,6 +312,9 @@ fun StudyNotesScreen(
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                     clipboard.setPrimaryClip(ClipData.newPlainText("Study Notes", textToCopy))
                                     Toast.makeText(context, "Notes copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                },
+                                onDownloadPdf = {
+                                    com.example.util.PdfExporter.exportStudyNotesPdf(context, notes)
                                 }
                             )
                         }
@@ -411,6 +443,9 @@ fun StudyNotesScreen(
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                     clipboard.setPrimaryClip(ClipData.newPlainText("Study Note", text))
                                     Toast.makeText(context, "Copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                },
+                                onDownloadPdf = {
+                                    com.example.util.PdfExporter.exportStudyNotesPdf(context, parsedNotes)
                                 }
                             )
                         }
@@ -493,7 +528,8 @@ fun SavedNoteCard(
 fun StudyNoteContentView(
     notes: GeneratedStudyNotes,
     onSave: (() -> Unit)?,
-    onCopy: () -> Unit
+    onCopy: () -> Unit,
+    onDownloadPdf: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -520,6 +556,11 @@ fun StudyNoteContentView(
                 )
 
                 Row {
+                    if (onDownloadPdf != null) {
+                        IconButton(onClick = onDownloadPdf, modifier = Modifier.testTag("download_pdf_button")) {
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = "Download PDF", tint = MaterialTheme.colorScheme.secondary)
+                        }
+                    }
                     IconButton(onClick = onCopy) {
                         Icon(Icons.Default.ContentCopy, contentDescription = "Copy Notes")
                     }
@@ -539,7 +580,7 @@ fun StudyNoteContentView(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "💡 QUICK SUMMARY",
+                            text = "QUICK SUMMARY",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -553,7 +594,7 @@ fun StudyNoteContentView(
             // Important Concepts
             if (notes.importantConcepts.isNotEmpty()) {
                 NoteSection(
-                    title = "📌 Important Concepts",
+                    title = "Important Concepts",
                     items = notes.importantConcepts,
                     accentColor = MaterialTheme.colorScheme.primary
                 )
@@ -562,7 +603,7 @@ fun StudyNoteContentView(
             // Key Definitions
             if (notes.keyDefinitions.isNotEmpty()) {
                 NoteSection(
-                    title = "📖 Key Definitions",
+                    title = "Key Definitions",
                     items = notes.keyDefinitions,
                     accentColor = MaterialTheme.colorScheme.secondary
                 )
@@ -571,7 +612,7 @@ fun StudyNoteContentView(
             // Exam Points
             if (notes.examPoints.isNotEmpty()) {
                 NoteSection(
-                    title = "🎯 High-Yield Exam Points",
+                    title = "High-Yield Exam Points",
                     items = notes.examPoints,
                     accentColor = MaterialTheme.colorScheme.tertiary
                 )
@@ -580,7 +621,7 @@ fun StudyNoteContentView(
             // Examples
             if (notes.examples.isNotEmpty()) {
                 NoteSection(
-                    title = "🔍 Examples & Applications",
+                    title = "Examples & Applications",
                     items = notes.examples,
                     accentColor = MaterialTheme.colorScheme.outline
                 )
@@ -589,21 +630,37 @@ fun StudyNoteContentView(
             // Quick Revision
             if (notes.quickRevision.isNotEmpty()) {
                 NoteSection(
-                    title = "⚡ 1-Minute Quick Revision",
+                    title = "1-Minute Quick Revision",
                     items = notes.quickRevision,
                     accentColor = MaterialTheme.colorScheme.error
                 )
             }
 
-            if (onSave != null) {
-                Button(
-                    onClick = onSave,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(Icons.Default.Bookmark, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Save Notes Offline", fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (onDownloadPdf != null) {
+                    OutlinedButton(
+                        onClick = onDownloadPdf,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Download PDF", fontWeight = FontWeight.Bold)
+                    }
+                }
+                if (onSave != null) {
+                    Button(
+                        onClick = onSave,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Save Offline", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

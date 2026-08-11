@@ -41,15 +41,17 @@ object GeminiClient {
     private var cachedAvailableModels: List<SupportedModel>? = null
 
     suspend fun fetchAvailableFreeModels(apiKey: String, forceRefresh: Boolean = false): List<SupportedModel> {
-        if (!forceRefresh && cachedAvailableModels != null) {
-            return cachedAvailableModels!!
+        val cached = cachedAvailableModels
+        if (!forceRefresh && cached != null) {
+            return cached
         }
         if (apiKey.isBlank()) return SupportedModel.FREE_MODEL_ALLOWLIST
 
         return try {
             val response = apiService.listModels(apiKey)
-            if (response.isSuccessful && response.body()?.models != null) {
-                val remoteModels = response.body()!!.models!!
+            val body = response.body()
+            if (response.isSuccessful && body?.models != null) {
+                val remoteModels = body.models
                 val available = SupportedModel.FREE_MODEL_ALLOWLIST.filter { allowlisted ->
                     remoteModels.any { remote ->
                         val cleanName = remote.name.removePrefix("models/")

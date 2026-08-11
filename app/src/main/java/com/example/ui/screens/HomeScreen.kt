@@ -47,6 +47,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,45 +88,27 @@ fun HomeScreen(
     viewModel: MainViewModel,
     onNavigate: (String) -> Unit
 ) {
-    val history by viewModel.testHistory.collectAsState()
-    val wrongQuestions by viewModel.wrongQuestions.collectAsState()
-    val bookmarks by viewModel.bookmarkedQuestions.collectAsState()
-    val topicStats by viewModel.topicStats.collectAsState()
-    val streak by viewModel.currentStreak.collectAsState()
-    val questionBankItems by viewModel.questionBankItems.collectAsState()
+    val history by viewModel.testHistory.collectAsStateWithLifecycle()
+    val wrongQuestions by viewModel.wrongQuestions.collectAsStateWithLifecycle()
+    val bookmarks by viewModel.bookmarkedQuestions.collectAsStateWithLifecycle()
+    val topicStats by viewModel.topicStats.collectAsStateWithLifecycle()
+    val streak by viewModel.currentStreak.collectAsStateWithLifecycle()
+    val questionBankItems by viewModel.questionBankItems.collectAsStateWithLifecycle()
 
-    val userApiKey by viewModel.userApiKey.collectAsState()
-    val userName by viewModel.displayName.collectAsState()
-    val profileImageUri by viewModel.profileImageUri.collectAsState()
-    val targetExam by viewModel.primaryExam.collectAsState()
-    val dailyGoalTarget by viewModel.dailyGoalTarget.collectAsState()
-    val savedNotes by viewModel.savedStudyNotes.collectAsState()
-    val savedFlashcards by viewModel.savedFlashcards.collectAsState()
+    val userApiKey by viewModel.userApiKey.collectAsStateWithLifecycle()
+    val userName by viewModel.displayName.collectAsStateWithLifecycle()
+    val profileImageUri by viewModel.profileImageUri.collectAsStateWithLifecycle()
+    val targetExam by viewModel.primaryExam.collectAsStateWithLifecycle()
+    val dailyGoalTarget by viewModel.dailyGoalTarget.collectAsStateWithLifecycle()
+    val savedNotes by viewModel.savedStudyNotes.collectAsStateWithLifecycle()
+    val savedFlashcards by viewModel.savedFlashcards.collectAsStateWithLifecycle()
+    val questionsAttemptedToday by viewModel.questionsAttemptedToday.collectAsStateWithLifecycle()
+    val overallAccuracy by viewModel.overallAccuracy.collectAsStateWithLifecycle()
     var showApiKeyRequiredDialog by remember { mutableStateOf(false) }
 
     // REAL DATA Calculations
     val totalTests = remember(history) { history.size }
     val totalQuestionsSolved = remember(history) { history.sumOf { it.questionCount } }
-    val totalCorrect = remember(history) { history.sumOf { it.correctCount } }
-    val overallAccuracy = remember(totalQuestionsSolved, totalCorrect) {
-        if (totalQuestionsSolved > 0) (totalCorrect.toFloat() / totalQuestionsSolved) * 100f else 0f
-    }
-
-    val questionsAttemptedToday = remember(history) {
-        val todayCal = Calendar.getInstance()
-        val todayYear = todayCal.get(Calendar.YEAR)
-        val todayDay = todayCal.get(Calendar.DAY_OF_YEAR)
-
-        val cal = Calendar.getInstance()
-        history.sumOf { record ->
-            cal.timeInMillis = record.createdAt
-            if (cal.get(Calendar.YEAR) == todayYear && cal.get(Calendar.DAY_OF_YEAR) == todayDay) {
-                record.questionCount
-            } else {
-                0
-            }
-        }
-    }
 
     val greeting = remember {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
@@ -257,7 +242,7 @@ fun HomeScreen(
                             .padding(16.dp)
                     ) {
                         Text(
-                            text = "TODAY'S PROGRESS",
+                            text = stringResource(R.string.home_todays_progress).uppercase(),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
@@ -396,7 +381,7 @@ fun HomeScreen(
                             }
                             Column {
                                 Text(
-                                    text = "Start Practice Test",
+                                    text = stringResource(R.string.home_start_test),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimary

@@ -18,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.viewmodel.MainViewModel
@@ -42,13 +44,22 @@ fun AiDoubtScreen(
     val preferredLanguage by viewModel.preferredLanguage.collectAsState()
     val primaryExam by viewModel.primaryExam.collectAsState()
 
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var selectedLanguage by remember { mutableStateOf("English") }
     var subjectInput by remember { mutableStateOf("") }
     var topicInput by remember { mutableStateOf("") }
     var doubtInput by remember { mutableStateOf("") }
     var activeResponse by remember { mutableStateOf<GeneratedDoubtResponse?>(null) }
+    var activeQuestion by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val recentDoubts = remember { mutableStateListOf<DoubtHistoryItem>() }
+
+    LaunchedEffect(preferredLanguage) {
+        if (preferredLanguage.isNotBlank()) {
+            selectedLanguage = preferredLanguage
+        }
+    }
 
     LaunchedEffect(primaryExam) {
         if (subjectInput.isBlank() && primaryExam.isNotBlank()) {
@@ -57,11 +68,12 @@ fun AiDoubtScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0.dp),
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("AI Doubt Solver", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.doubt_title), fontWeight = FontWeight.Bold)
                         Text(
                             "Instant clear explanations for any concept",
                             style = MaterialTheme.typography.labelSmall,
@@ -74,168 +86,357 @@ fun AiDoubtScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+                windowInsets = WindowInsets(0.dp)
             )
         }
     ) { paddingValues ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(Icons.Default.Help, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
-                        Text(
-                            "Ask any question or doubt regarding your subject or exam. AI will break it down into simple, direct, and exam-focused explanations.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedTextField(
-                        value = subjectInput,
-                        onValueChange = { subjectInput = it },
-                        label = { Text("Subject (Optional)") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = topicInput,
-                        onValueChange = { topicInput = it },
-                        label = { Text("Topic (Optional)") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                }
-            }
-
-            item {
-                OutlinedTextField(
-                    value = doubtInput,
-                    onValueChange = { doubtInput = it },
-                    label = { Text("Ask your Question / Doubt") },
-                    placeholder = { Text("e.g. What is the difference between speed and velocity?") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 100.dp)
-                        .testTag("doubt_text_input"),
-                    shape = RoundedCornerShape(12.dp)
+            TabRow(
+                selectedTabIndex = selectedTabIndex,
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                Tab(
+                    selected = selectedTabIndex == 0,
+                    onClick = { selectedTabIndex = 0 },
+                    text = { Text("Ask AI / Solve", fontWeight = FontWeight.SemiBold) },
+                    icon = { Icon(Icons.Default.Psychology, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                )
+                Tab(
+                    selected = selectedTabIndex == 1,
+                    onClick = { selectedTabIndex = 1 },
+                    text = { Text("Recent Doubts (${recentDoubts.size})", fontWeight = FontWeight.SemiBold) },
+                    icon = { Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(18.dp)) }
                 )
             }
 
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
-                    Text("Language: $preferredLanguage", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
-                }
-            }
-
-            errorMessage?.let { err ->
-                item {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                        Text(err, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(12.dp))
-                    }
-                }
-            }
-
-            item {
-                Button(
-                    onClick = {
-                        if (doubtInput.isBlank()) {
-                            errorMessage = "Please enter your question or doubt."
-                            return@Button
-                        }
-                        errorMessage = null
-                        viewModel.solveDoubt(
-                            subject = subjectInput,
-                            topic = topicInput,
-                            doubt = doubtInput,
-                            onSuccess = { response ->
-                                activeResponse = response
-                                recentDoubts.add(0, DoubtHistoryItem(question = doubtInput, response = response))
-                                Toast.makeText(context, "Explanation generated!", Toast.LENGTH_SHORT).show()
-                            },
-                            onError = { err -> errorMessage = err }
-                        )
-                    },
+            if (selectedTabIndex == 0) {
+                // Tab 0: Ask AI / Solve Form & Response
+                LazyColumn(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
-                        .testTag("ask_ai_doubt_button"),
-                    enabled = !isSolving,
-                    shape = RoundedCornerShape(12.dp)
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    if (isSolving) {
-                        CircularProgressIndicator(modifier = Modifier.size(22.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(if (doubtStatus.isNotBlank()) doubtStatus else "Solving Doubt...")
-                    } else {
-                        Icon(Icons.Default.Psychology, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Ask AI Solver", fontWeight = FontWeight.Bold)
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(Icons.Default.Help, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                                Text(
+                                    "Ask any question or doubt regarding your subject or exam. AI will break it down into simple, direct, and exam-focused explanations.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = subjectInput,
+                                onValueChange = { subjectInput = it },
+                                label = { Text("Subject (Optional)") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            OutlinedTextField(
+                                value = topicInput,
+                                onValueChange = { topicInput = it },
+                                label = { Text("Topic (Optional)") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = doubtInput,
+                            onValueChange = {
+                                doubtInput = it
+                                if (errorMessage != null) errorMessage = null
+                            },
+                            label = { Text("Ask your Question / Doubt") },
+                            placeholder = { Text("e.g. What is the difference between speed and velocity?") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 100.dp)
+                                .testTag("doubt_text_input"),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Language",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("English", "Hindi", "Hinglish").forEach { lang ->
+                                    val isSelected = selectedLanguage.equals(lang, ignoreCase = true)
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedLanguage = lang },
+                                        label = { Text(lang, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("doubt_lang_chip_$lang"),
+                                        leadingIcon = if (isSelected) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                        } else null
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    errorMessage?.let { err ->
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Error",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                        Text(err, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                                    }
+                                    if (doubtInput.isNotBlank()) {
+                                        Button(
+                                            onClick = {
+                                                errorMessage = null
+                                                viewModel.solveDoubt(
+                                                    subject = subjectInput,
+                                                    topic = topicInput,
+                                                    doubt = doubtInput,
+                                                    language = selectedLanguage,
+                                                    onSuccess = { response ->
+                                                        activeResponse = response
+                                                        activeQuestion = doubtInput
+                                                        recentDoubts.add(0, DoubtHistoryItem(question = doubtInput, response = response))
+                                                        Toast.makeText(context, "Explanation generated!", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    onError = { e -> errorMessage = e }
+                                                )
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                        ) {
+                                            Text("Retry")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Button(
+                            onClick = {
+                                if (doubtInput.isBlank()) {
+                                    errorMessage = "Please enter your question or doubt."
+                                    return@Button
+                                }
+                                errorMessage = null
+                                viewModel.solveDoubt(
+                                    subject = subjectInput,
+                                    topic = topicInput,
+                                    doubt = doubtInput,
+                                    language = selectedLanguage,
+                                    onSuccess = { response ->
+                                        activeResponse = response
+                                        activeQuestion = doubtInput
+                                        recentDoubts.add(0, DoubtHistoryItem(question = doubtInput, response = response))
+                                        Toast.makeText(context, "Explanation generated!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = { err -> errorMessage = err }
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .testTag("ask_ai_doubt_button"),
+                            enabled = !isSolving,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            if (isSolving) {
+                                CircularProgressIndicator(modifier = Modifier.size(22.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(if (doubtStatus.isNotBlank()) doubtStatus else "Solving Doubt...")
+                            } else {
+                                Icon(Icons.Default.Psychology, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Ask AI Solver", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    activeResponse?.let { resp ->
+                        item {
+                            DoubtResponseCard(
+                                question = if (activeQuestion.isNotBlank()) activeQuestion else doubtInput,
+                                response = resp,
+                                subject = subjectInput,
+                                topic = topicInput,
+                                language = selectedLanguage,
+                                onCopy = {
+                                    val q = if (activeQuestion.isNotBlank()) activeQuestion else doubtInput
+                                    val fullText = "Q: $q\n\nAnswer: ${resp.directAnswer}\n\nSimple Explanation:\n${resp.simpleExplanation}\n\nDetailed Explanation:\n${resp.detailedExplanation}\n\nExam Point:\n${resp.examPoint}"
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("Doubt Answer", fullText))
+                                    Toast.makeText(context, "Explanation copied!", Toast.LENGTH_SHORT).show()
+                                },
+                                onDownloadPdf = {
+                                    val q = if (activeQuestion.isNotBlank()) activeQuestion else doubtInput
+                                    com.example.util.PdfExporter.exportDoubtPdf(
+                                        context = context,
+                                        question = q,
+                                        response = resp,
+                                        subject = subjectInput.ifBlank { "General" },
+                                        topic = topicInput.ifBlank { "Doubt" },
+                                        language = selectedLanguage
+                                    )
+                                },
+                                onClear = { activeResponse = null }
+                            )
+                        }
                     }
                 }
-            }
-
-            activeResponse?.let { resp ->
-                item {
-                    DoubtResponseCard(
-                        question = doubtInput,
-                        response = resp,
-                        onCopy = {
-                            val fullText = "Q: $doubtInput\n\nAnswer: ${resp.directAnswer}\n\nSimple Explanation:\n${resp.simpleExplanation}\n\nDetailed Explanation:\n${resp.detailedExplanation}\n\nExam Point:\n${resp.examPoint}"
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Doubt Answer", fullText))
-                            Toast.makeText(context, "Explanation copied!", Toast.LENGTH_SHORT).show()
-                        },
-                        onClear = { activeResponse = null }
-                    )
-                }
-            }
-
-            if (recentDoubts.isNotEmpty() && activeResponse == null) {
-                item {
-                    Text("Recent Doubts in Session", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
-
-                items(recentDoubts) { item ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Text("Q: ${item.question}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(item.response.directAnswer, style = MaterialTheme.typography.bodyMedium)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            TextButton(
-                                onClick = { activeResponse = item.response },
-                                modifier = Modifier.align(Alignment.End)
+            } else {
+                // Tab 1: Recent Doubts & History
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (recentDoubts.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 40.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text("View Full Answer")
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.Psychology,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(56.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        "No doubts asked in this session yet",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        "Ask any question in the 'Ask AI / Solve' tab to see explanations here.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Button(onClick = { selectedTabIndex = 0 }) {
+                                        Text("Ask a Question")
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        items(recentDoubts) { item ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text(
+                                        "Q: ${item.question}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        item.response.directAnswer,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 3
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                com.example.util.PdfExporter.exportDoubtPdf(
+                                                    context = context,
+                                                    question = item.question,
+                                                    response = item.response,
+                                                    subject = subjectInput.ifBlank { "General" },
+                                                    topic = topicInput.ifBlank { "Doubt" },
+                                                    language = selectedLanguage
+                                                )
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                        ) {
+                                            Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("PDF", style = MaterialTheme.typography.labelMedium)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                activeResponse = item.response
+                                                activeQuestion = item.question
+                                                selectedTabIndex = 0
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                        ) {
+                                            Text("View Answer", style = MaterialTheme.typography.labelMedium)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -249,8 +450,12 @@ fun AiDoubtScreen(
 fun DoubtResponseCard(
     question: String,
     response: GeneratedDoubtResponse,
+    subject: String = "",
+    topic: String = "",
+    language: String = "English",
     onCopy: () -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    onDownloadPdf: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -264,8 +469,18 @@ fun DoubtResponseCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("AI Explanation", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("AI Explanation", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    if (question.isNotBlank()) {
+                        Text("Q: $question", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    }
+                }
                 Row {
+                    if (onDownloadPdf != null) {
+                        IconButton(onClick = onDownloadPdf, modifier = Modifier.testTag("download_doubt_pdf_button")) {
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = "Download PDF", tint = MaterialTheme.colorScheme.secondary)
+                        }
+                    }
                     IconButton(onClick = onCopy) {
                         Icon(Icons.Default.ContentCopy, contentDescription = "Copy Answer")
                     }
@@ -279,7 +494,7 @@ fun DoubtResponseCard(
             if (response.directAnswer.isNotBlank()) {
                 Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), shape = RoundedCornerShape(10.dp)) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text("🎯 DIRECT ANSWER", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text("DIRECT ANSWER", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(response.directAnswer, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                     }
@@ -289,7 +504,7 @@ fun DoubtResponseCard(
             // Simple Explanation
             if (response.simpleExplanation.isNotBlank()) {
                 Column {
-                    Text("💡 Simple Explanation", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                    Text("Simple Explanation", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(response.simpleExplanation, style = MaterialTheme.typography.bodyMedium)
                 }
@@ -298,7 +513,7 @@ fun DoubtResponseCard(
             // Detailed Explanation
             if (response.detailedExplanation.isNotBlank()) {
                 Column {
-                    Text("📝 Step-by-Step Breakdown", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
+                    Text("Step-by-Step Breakdown", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(response.detailedExplanation, style = MaterialTheme.typography.bodyMedium)
                 }
@@ -308,10 +523,22 @@ fun DoubtResponseCard(
             if (response.examPoint.isNotBlank()) {
                 Surface(color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f), shape = RoundedCornerShape(10.dp)) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text("⭐ KEY EXAM TAKEAWAY", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
+                        Text("KEY EXAM TAKEAWAY", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(response.examPoint, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
                     }
+                }
+            }
+
+            if (onDownloadPdf != null) {
+                OutlinedButton(
+                    onClick = onDownloadPdf,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Download Solution PDF", fontWeight = FontWeight.Bold)
                 }
             }
         }

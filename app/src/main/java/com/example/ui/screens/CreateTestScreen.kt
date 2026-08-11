@@ -261,8 +261,8 @@ fun CreateTestScreen(
     val takePictureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success && tempCameraUri != null) {
-            viewModel.addImagesFromUris(listOf(tempCameraUri!!))
+        if (success) {
+            tempCameraUri?.let { viewModel.addImagesFromUris(listOf(it)) }
         }
     }
 
@@ -1707,7 +1707,7 @@ fun CreateTestScreen(
                     )
                     if (customTimerError != null) {
                         Text(
-                            text = customTimerError!!,
+                            text = customTimerError ?: "",
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -1771,7 +1771,7 @@ fun CreateTestScreen(
                     )
                     if (customNegativeError != null) {
                         Text(
-                            text = customNegativeError!!,
+                            text = customNegativeError ?: "",
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall
                         )

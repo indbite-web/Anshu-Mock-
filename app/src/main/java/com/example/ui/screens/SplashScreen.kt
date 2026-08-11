@@ -46,7 +46,7 @@ fun SplashScreen(
     val context = LocalContext.current
 
     // Color definitions for light theme
-    val backgroundColor = Color(0xFFF8FAFC)
+    val backgroundColor = Color(0xFFFFFFFF)
     val primaryTextColor = Color(0xFF0F172A)
     val secondaryTextColor = Color(0xFF64748B)
 

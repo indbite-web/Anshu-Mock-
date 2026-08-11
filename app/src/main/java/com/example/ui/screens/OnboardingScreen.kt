@@ -4,10 +4,15 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.runtime.LaunchedEffect
 import com.example.ui.components.ProfilePhotoBottomSheet
 import com.example.ui.components.UserAvatar
 import androidx.compose.animation.AnimatedContent
@@ -61,6 +66,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -92,6 +98,7 @@ fun OnboardingScreen(
     val context = LocalContext.current
     val currentApiKey by viewModel.userApiKey.collectAsState()
     val profileImageUri by viewModel.profileImageUri.collectAsState()
+    val permissionsOnboardingCompleted by viewModel.permissionsOnboardingCompleted.collectAsState()
 
     var step by remember { mutableIntStateOf(0) }
 
@@ -118,8 +125,8 @@ fun OnboardingScreen(
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success && cameraTempUri != null) {
-            viewModel.saveProfileImage(cameraTempUri!!)
+        if (success) {
+            cameraTempUri?.let { viewModel.saveProfileImage(it) }
         }
     }
 
@@ -161,7 +168,8 @@ fun OnboardingScreen(
         )
     }
 
-    val totalSteps = 6
+    val totalSteps = if (permissionsOnboardingCompleted) 6 else 7
+    val currentDisplayStep = if (permissionsOnboardingCompleted) (if (step > 1) step - 1 else step) else step
 
     val popularExams = listOf(
         "SSC CGL", "SSC CHSL", "Railway Exams", "Banking Exams",
@@ -172,35 +180,47 @@ fun OnboardingScreen(
     Scaffold(
         topBar = {
             if (step > 0) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                Surface(
+                    color = MaterialTheme.colorScheme.background,
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp
                 ) {
-                    IconButton(onClick = { if (step > 0) step-- }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-
-                    LinearProgressIndicator(
-                        progress = { (step.toFloat() / totalSteps.toFloat()) },
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 16.dp)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        IconButton(onClick = {
+                            if (step == 2 && permissionsOnboardingCompleted) {
+                                step = 0
+                            } else if (step > 0) {
+                                step--
+                            }
+                        }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        }
 
-                    Text(
-                        text = "$step / $totalSteps",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(end = 12.dp)
-                    )
+                        LinearProgressIndicator(
+                            progress = { (currentDisplayStep.toFloat() / totalSteps.toFloat()) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 16.dp)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+
+                        Text(
+                            text = "$currentDisplayStep / $totalSteps",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+                    }
                 }
             }
         },
@@ -231,34 +251,40 @@ fun OnboardingScreen(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 when (targetStep) {
-                    0 -> WelcomeStep(onStart = { step = 1 })
-                    1 -> NameStep(
+                    0 -> WelcomeStep(onStart = {
+                        step = if (permissionsOnboardingCompleted) 2 else 1
+                    })
+                    1 -> PermissionsStep(
+                        viewModel = viewModel,
+                        onNext = { step = 2 }
+                    )
+                    2 -> NameStep(
                         name = userName,
                         onNameChange = { userName = it },
                         profileImageUri = profileImageUri,
                         onOpenPhotoPicker = { showPhotoBottomSheet = true },
                         onRemovePhoto = { viewModel.removeProfileImage() },
-                        onNext = { step = 2 }
+                        onNext = { step = 3 }
                     )
-                    2 -> ExamStep(
+                    3 -> ExamStep(
                         primaryExam = primaryExam,
                         onPrimaryExamChange = { primaryExam = it },
                         additionalExams = additionalExams,
                         onAdditionalExamsChange = { additionalExams = it },
                         popularExams = popularExams,
-                        onNext = { step = 3 }
-                    )
-                    3 -> LanguageStep(
-                        selectedLanguage = preferredLanguage,
-                        onLanguageSelected = { preferredLanguage = it },
                         onNext = { step = 4 }
                     )
-                    4 -> DailyTargetStep(
-                        selectedTarget = dailyTarget,
-                        onTargetSelected = { dailyTarget = it },
+                    4 -> LanguageStep(
+                        selectedLanguage = preferredLanguage,
+                        onLanguageSelected = { preferredLanguage = it },
                         onNext = { step = 5 }
                     )
-                    5 -> GeminiApiStep(
+                    5 -> DailyTargetStep(
+                        selectedTarget = dailyTarget,
+                        onTargetSelected = { dailyTarget = it },
+                        onNext = { step = 6 }
+                    )
+                    6 -> GeminiApiStep(
                         userApiKey = currentApiKey,
                         enteredKey = enteredApiKey,
                         onEnteredKeyChange = { enteredApiKey = it },
@@ -268,15 +294,24 @@ fun OnboardingScreen(
                             apiKeySavedSuccess = true
                         },
                         onGetApiKey = {
-                            val intent = Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse("https://aistudio.google.com/app/apikey")
-                            )
-                            context.startActivity(intent)
+                            try {
+                                val intent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://aistudio.google.com/app/apikey")
+                                ).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                android.util.Log.e("OnboardingScreen", "Failed to launch API key page", e)
+                                try {
+                                    android.widget.Toast.makeText(context, "Unable to open browser", android.widget.Toast.LENGTH_SHORT).show()
+                                } catch (_: Exception) {}
+                            }
                         },
-                        onNext = { step = 6 }
+                        onNext = { step = 7 }
                     )
-                    6 -> FinalSummaryStep(
+                    7 -> FinalSummaryStep(
                         name = userName,
                         primaryExam = primaryExam,
                         additionalExams = additionalExams,
@@ -1129,5 +1164,284 @@ private fun SummaryRow(label: String, value: String) {
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
+    }
+}
+
+@Composable
+private fun PermissionsStep(
+    viewModel: MainViewModel,
+    onNext: () -> Unit
+) {
+    val context = LocalContext.current
+    var activePermissionIndex by remember { mutableIntStateOf(-1) }
+
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) {
+        activePermissionIndex = 1
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) {
+        activePermissionIndex = 2
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) {
+        activePermissionIndex = 3
+    }
+
+    LaunchedEffect(activePermissionIndex) {
+        when (activePermissionIndex) {
+            0 -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        try {
+                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } catch (e: Exception) {
+                            android.util.Log.e("OnboardingScreen", "Error requesting notification permission", e)
+                            activePermissionIndex = 1
+                        }
+                    } else {
+                        activePermissionIndex = 1
+                    }
+                } else {
+                    activePermissionIndex = 1
+                }
+            }
+            1 -> {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                    try {
+                        cameraLauncher.launch(Manifest.permission.CAMERA)
+                    } catch (e: Exception) {
+                        android.util.Log.e("OnboardingScreen", "Error requesting camera permission", e)
+                        activePermissionIndex = 2
+                    }
+                } else {
+                    activePermissionIndex = 2
+                }
+            }
+            2 -> {
+                val galleryPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    Manifest.permission.READ_MEDIA_IMAGES
+                } else {
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                }
+                if (ContextCompat.checkSelfPermission(context, galleryPerm) != PackageManager.PERMISSION_GRANTED) {
+                    try {
+                        galleryLauncher.launch(galleryPerm)
+                    } catch (e: Exception) {
+                        android.util.Log.e("OnboardingScreen", "Error requesting gallery permission", e)
+                        activePermissionIndex = 3
+                    }
+                } else {
+                    activePermissionIndex = 3
+                }
+            }
+            3 -> {
+                viewModel.setPermissionsOnboardingCompleted(true)
+                onNext()
+            }
+        }
+    }
+
+    fun startPermissionSequence() {
+        activePermissionIndex = 0
+    }
+
+    fun skipPermissions() {
+        viewModel.setPermissionsOnboardingCompleted(true)
+        onNext()
+    }
+
+    val hasNotifPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    } else true
+
+    val hasCameraPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+
+    val galleryPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_IMAGES
+    } else {
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+    val hasGalleryPerm = ContextCompat.checkSelfPermission(context, galleryPerm) == PackageManager.PERMISSION_GRANTED
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.Notifications,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = "App Permissions",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Enable key permissions to get study reminders, update alerts, profile photos, and AI study materials.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        PermissionItemCard(
+            title = "Notifications",
+            description = "Allow notifications to receive study reminders and app update alerts.",
+            icon = Icons.Default.Notifications,
+            isGranted = hasNotifPerm
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        PermissionItemCard(
+            title = "Camera Access",
+            description = "Camera access is used to capture your profile photo and attach images to questions.",
+            icon = Icons.Default.CameraAlt,
+            isGranted = hasCameraPerm
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        PermissionItemCard(
+            title = "Photo Gallery",
+            description = "Photo access allows you to select profile pictures and attach study material images.",
+            icon = Icons.Default.PhotoLibrary,
+            isGranted = hasGalleryPerm
+        )
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        Button(
+            onClick = { startPermissionSequence() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Text(
+                text = "Allow Permissions & Continue",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(Icons.Default.ArrowForward, contentDescription = null)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        TextButton(
+            onClick = { skipPermissions() },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "Skip for Now",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun PermissionItemCard(
+    title: String,
+    description: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isGranted: Boolean
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isGranted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            else MaterialTheme.colorScheme.surface
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isGranted) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+            else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isGranted) Color(0xFFD1FAE5)
+                        else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isGranted) Color(0xFF047857) else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    if (isGranted) {
+                        Surface(
+                            color = Color(0xFFD1FAE5),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "Allowed",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF047857),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }

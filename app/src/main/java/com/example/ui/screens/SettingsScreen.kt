@@ -10,15 +10,26 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.ui.components.ProfilePhotoBottomSheet
 import com.example.ui.components.UserAvatar
+import androidx.annotation.DrawableRes
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.core.content.ContextCompat
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -159,8 +170,8 @@ fun SettingsScreen(
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success && cameraTempUri != null) {
-            viewModel.saveProfileImage(cameraTempUri!!)
+        if (success) {
+            cameraTempUri?.let { viewModel.saveProfileImage(it) }
         }
     }
 
@@ -317,11 +328,12 @@ fun SettingsScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0.dp),
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Settings & AI Configuration",
+                        text = stringResource(R.string.settings_title),
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -338,7 +350,8 @@ fun SettingsScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
-                )
+                ),
+                windowInsets = WindowInsets(0.dp)
             )
         }
     ) { innerPadding ->
@@ -518,6 +531,70 @@ fun SettingsScreen(
                 }
             }
 
+            // App Language Section
+            item {
+                val appLanguage by viewModel.appLanguage.collectAsState()
+
+                Text(
+                    text = stringResource(R.string.settings_app_language),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Select language for application interface",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "App Language",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (appLanguage.equals("हिंदी", ignoreCase = true)) "हिंदी चयन है" else "English selected",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = !appLanguage.equals("हिंदी", ignoreCase = true),
+                                onClick = { viewModel.setAppLanguage("English") },
+                                label = { Text("English") },
+                                modifier = Modifier.testTag("app_lang_english")
+                            )
+                            FilterChip(
+                                selected = appLanguage.equals("हिंदी", ignoreCase = true),
+                                onClick = { viewModel.setAppLanguage("हिंदी") },
+                                label = { Text("हिंदी") },
+                                modifier = Modifier.testTag("app_lang_hindi")
+                            )
+                        }
+                    }
+                }
+            }
+
             // Section 1: Gemini API Key Onboarding
             item {
                 val context = LocalContext.current
@@ -561,8 +638,7 @@ fun SettingsScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/apikey"))
-                                    context.startActivity(intent)
+                                    openUrlSafely(context, "https://aistudio.google.com/app/apikey")
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -873,14 +949,17 @@ fun SettingsScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             } else if (connectionStatus != null) {
-                                val (success, msg) = connectionStatus!!
-                                val color = if (success) Color(0xFF10B981) else Color(0xFFEF4444)
-                                Text(
-                                    text = msg,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = color,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                val status = connectionStatus
+                                if (status != null) {
+                                    val (success, msg) = status
+                                    val color = if (success) Color(0xFF10B981) else Color(0xFFEF4444)
+                                    Text(
+                                        text = msg,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = color,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             } else if (userApiKey.isNotBlank()) {
                                 Text(
                                     text = "Connected",
@@ -1442,7 +1521,7 @@ fun SettingsScreen(
                                 if (importStatusMessage != null) {
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = importStatusMessage!!,
+                                        text = importStatusMessage ?: "",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary
                                     )
@@ -1472,6 +1551,84 @@ fun SettingsScreen(
                         }
                     )
                 }
+            }
+
+            // Connect With Us Section
+            item {
+                val context = LocalContext.current
+
+                Text(
+                    text = stringResource(R.string.connect_with_us_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = stringResource(R.string.connect_with_us_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        ConnectSocialRow(
+                            iconRes = R.drawable.ic_instagram,
+                            title = stringResource(R.string.connect_instagram_title),
+                            subtitle = stringResource(R.string.connect_instagram_subtitle),
+                            testTag = "connect_instagram_row",
+                            onClick = {
+                                openUrlSafely(context, "https://www.instagram.com/devil__hacker__op?igsh=NTVnN2l4a2toa2tk")
+                            }
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+
+                        ConnectSocialRow(
+                            iconRes = R.drawable.ic_youtube,
+                            title = stringResource(R.string.connect_youtube_title),
+                            subtitle = stringResource(R.string.connect_youtube_subtitle),
+                            testTag = "connect_youtube_row",
+                            onClick = {
+                                openUrlSafely(context, "https://youtube.com/@anshucore-studio?si=9sMs7vMwLTGOhqYq")
+                            }
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+
+                        ConnectSocialRow(
+                            iconRes = R.drawable.ic_website,
+                            title = stringResource(R.string.connect_website_title),
+                            subtitle = stringResource(R.string.connect_website_subtitle),
+                            testTag = "connect_website_row",
+                            onClick = {
+                                openUrlSafely(context, "https://anshu-core.vercel.app/")
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
             }
 
             // Section 7: About Anshu Mock
@@ -1522,6 +1679,19 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline
                         )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { viewModel.checkForUpdatesManually() },
+                            modifier = Modifier.testTag("check_for_updates_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.update_check_for_updates))
+                        }
                     }
                 }
             }
@@ -1630,3 +1800,81 @@ private fun formatTime(hour: Int, minute: Int): String {
     val sdf = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US)
     return sdf.format(cal.time)
 }
+
+@Composable
+private fun ConnectSocialRow(
+    @DrawableRes iconRes: Int,
+    title: String,
+    subtitle: String,
+    testTag: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .testTag(testTag),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                painter = painterResource(id = iconRes),
+                contentDescription = title,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(8.dp)
+                    .fillMaxSize()
+            )
+        }
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+private fun openUrlSafely(context: android.content.Context, url: String) {
+    try {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        android.util.Log.e("SettingsScreen", "Failed to launch URL: $url", e)
+        try {
+            android.widget.Toast.makeText(
+                context,
+                "Unable to open link",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        } catch (_: Exception) {}
+    }
+}
+
