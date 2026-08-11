@@ -1,0 +1,203 @@
+<resources>
+    <string name="app_name">Anshu Mock</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_ai_notes">AI Notes</string>
+    <string name="nav_flashcards">Flashcards</string>
+    <string name="nav_ai_solver">AI Solver</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Home Screen -->
+    <string name="home_title">Home</string>
+    <string name="home_practice">Practice</string>
+    <string name="home_start_test">Start Test</string>
+    <string name="home_todays_progress">Today\'s Progress</string>
+    <string name="home_daily_goal">Daily Goal</string>
+    <string name="home_recommended_test">Recommended Test</string>
+    <string name="home_exam_readiness">Exam Readiness</string>
+    <string name="home_todays_revision">Today\'s Revision</string>
+    <string name="home_ai_study_coach">AI Study Coach</string>
+    <string name="home_ai_study_tools">AI Study Tools</string>
+    <string name="home_quick_actions">Quick Actions</string>
+    <string name="home_streak">Day Streak</string>
+    <string name="home_mistake_vault">Mistake Vault</string>
+    <string name="home_question_bank">Question Bank</string>
+    <string name="home_test_history">Test History</string>
+    <string name="home_weak_topics">Weak Topics</string>
+    <string name="home_bookmarks">Bookmarks</string>
+    <string name="home_performance">Performance</string>
+
+    <!-- Test Creation -->
+    <string name="create_test_title">Create Test</string>
+    <string name="create_test_subject">Subject</string>
+    <string name="create_test_topic">Topic</string>
+    <string name="create_test_question_count">Question Count</string>
+    <string name="create_test_difficulty">Difficulty</string>
+    <string name="difficulty_easy">Easy</string>
+    <string name="difficulty_medium">Medium</string>
+    <string name="difficulty_hard">Hard</string>
+    <string name="difficulty_short">Short</string>
+    <string name="difficulty_medium_length">Medium</string>
+    <string name="difficulty_long">Long</string>
+    <string name="create_test_timer">Timer</string>
+    <string name="create_test_negative_marking">Negative Marking</string>
+    <string name="negative_marking_none">None</string>
+    <string name="create_test_generate">Generate</string>
+    <string name="create_test_start">Start Test</string>
+    <string name="create_test_strict_source">Strict Source Mode</string>
+    <string name="create_test_prompt_placeholder">e.g. 10 MCQs on Modern Indian History...</string>
+    <string name="create_test_upload_notes">Upload Notes/Images</string>
+
+    <!-- Exam Screen -->
+    <string name="quiz_question">Question</string>
+    <string name="quiz_next">Next</string>
+    <string name="quiz_previous">Previous</string>
+    <string name="quiz_skip">Skip</string>
+    <string name="quiz_mark_for_review">Mark for Review</string>
+    <string name="quiz_submit">Submit</string>
+    <string name="quiz_time_remaining">Time Remaining</string>
+
+    <!-- Results -->
+    <string name="result_title">Result</string>
+    <string name="result_score">Score</string>
+    <string name="result_correct">Correct</string>
+    <string name="result_incorrect">Incorrect</string>
+    <string name="result_unattempted">Unattempted</string>
+    <string name="result_accuracy">Accuracy</string>
+    <string name="result_time_taken">Time Taken</string>
+    <string name="result_negative_marks">Negative Marks</string>
+    <string name="result_review_answers">Review Answers</string>
+    <string name="result_explain_with_ai">Explain with AI</string>
+    <string name="result_improve_answer">Improve My Answer</string>
+    <string name="result_ai_analysis">AI Performance Analysis</string>
+
+    <!-- History -->
+    <string name="history_title">History</string>
+    <string name="history_test_history">Test History</string>
+    <string name="history_date">Date</string>
+    <string name="history_score">Score</string>
+    <string name="history_questions">Questions</string>
+    <string name="history_delete">Delete</string>
+    <string name="history_view_result">View Result</string>
+
+    <!-- Question Bank -->
+    <string name="bank_title">Question Bank</string>
+    <string name="bank_search">Search</string>
+    <string name="bank_filter">Filter</string>
+    <string name="bank_save">Save</string>
+    <string name="bank_delete">Delete</string>
+    <string name="bank_subject">Subject</string>
+    <string name="bank_topic">Topic</string>
+
+    <!-- Wrong Questions / Mistake Vault -->
+    <string name="mistake_wrong_questions">Wrong Questions</string>
+    <string name="mistake_vault">Mistake Vault</string>
+    <string name="mistake_attempts">Attempts</string>
+    <string name="mistake_wrong_attempts">Wrong Attempts</string>
+    <string name="mistake_analyze">Analyze Mistake</string>
+    <string name="mistake_mastery">Mastery</string>
+
+    <!-- Bookmarks -->
+    <string name="bookmarks_title">Bookmarks</string>
+    <string name="bookmarks_saved_questions">Saved Questions</string>
+    <string name="bookmarks_remove">Remove Bookmark</string>
+
+    <!-- AI Study Notes -->
+    <string name="notes_title">Study Notes</string>
+    <string name="notes_generate">Generate Notes</string>
+    <string name="notes_summary">Summary</string>
+    <string name="notes_key_concepts">Key Concepts</string>
+    <string name="notes_definitions">Definitions</string>
+    <string name="notes_exam_points">Exam Points</string>
+    <string name="notes_quick_revision">Quick Revision</string>
+    <string name="notes_save">Save</string>
+    <string name="notes_copy">Copy</string>
+    <string name="notes_download_pdf">Download PDF</string>
+    <string name="notes_language">Language</string>
+
+    <!-- Flashcards -->
+    <string name="flashcards_title">Flashcards</string>
+    <string name="flashcards_generate">Generate Flashcards</string>
+    <string name="flashcards_question">Question</string>
+    <string name="flashcards_answer">Answer</string>
+    <string name="flashcards_again">Again</string>
+    <string name="flashcards_hard">Hard</string>
+    <string name="flashcards_easy">Easy</string>
+    <string name="flashcards_known">Known</string>
+    <string name="flashcards_learning">Learning</string>
+    <string name="flashcards_next">Next</string>
+    <string name="flashcards_download_pdf">Download PDF</string>
+
+    <!-- AI Doubt Solver -->
+    <string name="doubt_title">AI Solver</string>
+    <string name="doubt_ask_ai">Ask AI</string>
+    <string name="doubt_subject">Subject</string>
+    <string name="doubt_topic">Topic</string>
+    <string name="doubt_your_question">Your Question</string>
+    <string name="doubt_answer">Answer</string>
+    <string name="doubt_explanation">Explanation</string>
+    <string name="doubt_step_by_step">Step-by-Step</string>
+    <string name="doubt_exam_takeaway">Exam Takeaway</string>
+    <string name="doubt_download_pdf">Download PDF</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_app_language">App Language</string>
+    <string name="settings_ai_content_language">AI Content Language</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_api_key">API Key</string>
+    <string name="settings_backup">Backup</string>
+    <string name="settings_restore">Restore</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version</string>
+
+    <!-- Errors & Loading -->
+    <string name="loading">Loading</string>
+    <string name="generating">Generating...</string>
+    <string name="please_wait">Please wait</string>
+    <string name="network_error">Network error</string>
+    <string name="invalid_api_key">Invalid API key</string>
+    <string name="quota_exceeded">Quota exceeded</string>
+    <string name="something_went_wrong">Something went wrong</string>
+    <string name="try_again">Try again</string>
+    <string name="no_data_available">No data available</string>
+    <string name="no_questions_found">No questions found</string>
+    <string name="saved_successfully">Saved successfully</string>
+    <string name="deleted_successfully">Deleted successfully</string>
+    <string name="pdf_generated">PDF generated</string>
+    <string name="pdf_generation_failed">PDF generation failed</string>
+
+    <!-- Additional UI Labels -->
+    <string name="back">Back</string>
+    <string name="close">Close</string>
+    <string name="save_changes">Save Changes</string>
+    <string name="cancel">Cancel</string>
+    <string name="edit_profile">Edit Profile</string>
+    <string name="reset_profile">Reset Profile</string>
+
+    <!-- In-App Update System -->
+    <string name="update_available">New Update Available</string>
+    <string name="update_whats_new">What\'s New</string>
+    <string name="update_now">Update Now</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading">Downloading update...</string>
+    <string name="update_failed">Update download failed. Please try again.</string>
+    <string name="update_retry">Retry</string>
+    <string name="update_allow_install">To install updates downloaded from GitHub, allow Anshu Mock to install unknown apps.</string>
+    <string name="update_allow">Allow</string>
+    <string name="update_check_for_updates">Check for Updates</string>
+    <string name="update_checking">Checking for updates...</string>
+    <string name="update_latest_version">You\'re using the latest version.</string>
+    <string name="update_current_version">Current Version</string>
+    <!-- Connect With Us Section -->
+    <string name="connect_with_us_title">Connect With Us</string>
+    <string name="connect_with_us_subtitle">Stay connected with AnshuCore</string>
+    <string name="connect_instagram_title">Instagram</string>
+    <string name="connect_instagram_subtitle">Follow us on Instagram</string>
+    <string name="connect_youtube_title">YouTube</string>
+    <string name="connect_youtube_subtitle">Subscribe on YouTube</string>
+    <string name="connect_website_title">Website</string>
+    <string name="connect_website_subtitle">Visit AnshuCore</string>
+</resources>

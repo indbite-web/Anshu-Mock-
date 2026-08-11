@@ -1,0 +1,203 @@
+<resources>
+    <string name="app_name">अंशु मॉक</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">होम</string>
+    <string name="nav_ai_notes">AI नोट्स</string>
+    <string name="nav_flashcards">फ्लैशकार्ड</string>
+    <string name="nav_ai_solver">AI सॉल्वर</string>
+    <string name="nav_settings">सेटिंग्स</string>
+
+    <!-- Home Screen -->
+    <string name="home_title">होम</string>
+    <string name="home_practice">अभ्यास</string>
+    <string name="home_start_test">टेस्ट शुरू करें</string>
+    <string name="home_todays_progress">आज की प्रगति</string>
+    <string name="home_daily_goal">दैनिक लक्ष्य</string>
+    <string name="home_recommended_test">अनुशंसित टेस्ट</string>
+    <string name="home_exam_readiness">परीक्षा तैयारी</string>
+    <string name="home_todays_revision">आज का रिवीजन</string>
+    <string name="home_ai_study_coach">AI स्टडी कोच</string>
+    <string name="home_ai_study_tools">AI स्टडी टूल</string>
+    <string name="home_quick_actions">त्वरित कार्रवाई</string>
+    <string name="home_streak">दिन की लड़ी</string>
+    <string name="home_mistake_vault">गलती तिजोरी</string>
+    <string name="home_question_bank">प्रश्न बैंक</string>
+    <string name="home_test_history">टेस्ट इतिहास</string>
+    <string name="home_weak_topics">कमजोर विषय</string>
+    <string name="home_bookmarks">बुकमार्क</string>
+    <string name="home_performance">प्रदर्शन</string>
+
+    <!-- Test Creation -->
+    <string name="create_test_title">टेस्ट बनाएं</string>
+    <string name="create_test_subject">विषय</string>
+    <string name="create_test_topic">टॉपिक</string>
+    <string name="create_test_question_count">प्रश्नों की संख्या</string>
+    <string name="create_test_difficulty">कठिनाई</string>
+    <string name="difficulty_easy">आसान</string>
+    <string name="difficulty_medium">मध्यम</string>
+    <string name="difficulty_hard">कठिन</string>
+    <string name="difficulty_short">लघु</string>
+    <string name="difficulty_medium_length">मध्यम</string>
+    <string name="difficulty_long">दीर्घ</string>
+    <string name="create_test_timer">टाइमर</string>
+    <string name="create_test_negative_marking">नेगेटिव मार्किंग</string>
+    <string name="negative_marking_none">कोई नहीं</string>
+    <string name="create_test_generate">जनरेट करें</string>
+    <string name="create_test_start">टेस्ट शुरू करें</string>
+    <string name="create_test_strict_source">सख्त स्रोत मोड</string>
+    <string name="create_test_prompt_placeholder">उदा. आधुनिक भारतीय इतिहास पर 10 एमसीक्यू...</string>
+    <string name="create_test_upload_notes">नोट्स/इमेजिस अपलोड करें</string>
+
+    <!-- Exam Screen -->
+    <string name="quiz_question">प्रश्न</string>
+    <string name="quiz_next">अगला</string>
+    <string name="quiz_previous">पिछला</string>
+    <string name="quiz_skip">छोड़ें</string>
+    <string name="quiz_mark_for_review">समीक्षा के लिए मार्क करें</string>
+    <string name="quiz_submit">सबमिट करें</string>
+    <string name="quiz_time_remaining">शेष समय</string>
+
+    <!-- Results -->
+    <string name="result_title">परिणाम</string>
+    <string name="result_score">स्कोर</string>
+    <string name="result_correct">सही</string>
+    <string name="result_incorrect">गलत</string>
+    <string name="result_unattempted">अनप्रयासित</string>
+    <string name="result_accuracy">सटीकता</string>
+    <string name="result_time_taken">लिया गया समय</string>
+    <string name="result_negative_marks">नकारात्मक अंक</string>
+    <string name="result_review_answers">उत्तरों की समीक्षा</string>
+    <string name="result_explain_with_ai">AI से समझें</string>
+    <string name="result_improve_answer">अपना उत्तर सुधारें</string>
+    <string name="result_ai_analysis">AI प्रदर्शन विश्लेषण</string>
+
+    <!-- History -->
+    <string name="history_title">इतिहास</string>
+    <string name="history_test_history">टेस्ट इतिहास</string>
+    <string name="history_date">तिथि</string>
+    <string name="history_score">स्कोर</string>
+    <string name="history_questions">प्रश्न</string>
+    <string name="history_delete">हटाएँ</string>
+    <string name="history_view_result">परिणाम देखें</string>
+
+    <!-- Question Bank -->
+    <string name="bank_title">प्रश्न बैंक</string>
+    <string name="bank_search">खोजें</string>
+    <string name="bank_filter">फ़िल्टर</string>
+    <string name="bank_save">सहेजें</string>
+    <string name="bank_delete">हटाएँ</string>
+    <string name="bank_subject">विषय</string>
+    <string name="bank_topic">टॉपिक</string>
+
+    <!-- Wrong Questions / Mistake Vault -->
+    <string name="mistake_wrong_questions">गलत प्रश्न</string>
+    <string name="mistake_vault">गलती तिजोरी</string>
+    <string name="mistake_attempts">प्रयास</string>
+    <string name="mistake_wrong_attempts">गलत प्रयास</string>
+    <string name="mistake_analyze">गलती का विश्लेषण करें</string>
+    <string name="mistake_mastery">महारत</string>
+
+    <!-- Bookmarks -->
+    <string name="bookmarks_title">बुकमार्क</string>
+    <string name="bookmarks_saved_questions">सहेजे गए प्रश्न</string>
+    <string name="bookmarks_remove">बुकमार्क हटाएँ</string>
+
+    <!-- AI Study Notes -->
+    <string name="notes_title">स्टडी नोट्स</string>
+    <string name="notes_generate">नोट्स बनाएं</string>
+    <string name="notes_summary">सारांश</string>
+    <string name="notes_key_concepts">मुख्य अवधारणाएं</string>
+    <string name="notes_definitions">परिभाषाएं</string>
+    <string name="notes_exam_points">परीक्षा बिंदु</string>
+    <string name="notes_quick_revision">त्वरित रिवीजन</string>
+    <string name="notes_save">सहेजें</string>
+    <string name="notes_copy">कॉपी करें</string>
+    <string name="notes_download_pdf">पीडीएफ डाउनलोड करें</string>
+    <string name="notes_language">भाषा</string>
+
+    <!-- Flashcards -->
+    <string name="flashcards_title">फ्लैशकार्ड</string>
+    <string name="flashcards_generate">फ्लैशकार्ड बनाएं</string>
+    <string name="flashcards_question">प्रश्न</string>
+    <string name="flashcards_answer">उत्तर</string>
+    <string name="flashcards_again">पुनः</string>
+    <string name="flashcards_hard">कठिन</string>
+    <string name="flashcards_easy">आसान</string>
+    <string name="flashcards_known">ज्ञात</string>
+    <string name="flashcards_learning">सीख रहे हैं</string>
+    <string name="flashcards_next">अगला</string>
+    <string name="flashcards_download_pdf">पीडीएफ डाउनलोड करें</string>
+
+    <!-- AI Doubt Solver -->
+    <string name="doubt_title">AI सॉल्वर</string>
+    <string name="doubt_ask_ai">AI से पूछें</string>
+    <string name="doubt_subject">विषय</string>
+    <string name="doubt_topic">टॉपिक</string>
+    <string name="doubt_your_question">आपका प्रश्न</string>
+    <string name="doubt_answer">उत्तर</string>
+    <string name="doubt_explanation">व्याख्या</string>
+    <string name="doubt_step_by_step">चरण-दर-चरण</string>
+    <string name="doubt_exam_takeaway">परीक्षा टेकअवे</string>
+    <string name="doubt_download_pdf">पीडीएफ डाउनलोड करें</string>
+
+    <!-- Settings -->
+    <string name="settings_title">सेटिंग्स</string>
+    <string name="settings_app_language">ऐप भाषा</string>
+    <string name="settings_ai_content_language">AI सामग्री भाषा</string>
+    <string name="settings_theme">थीम</string>
+    <string name="settings_notifications">सूचनाएं</string>
+    <string name="settings_api_key">एपीआई कुंजी</string>
+    <string name="settings_backup">बैकअप</string>
+    <string name="settings_restore">पुनर्स्थापित करें</string>
+    <string name="settings_about">ऐप के बारे में</string>
+    <string name="settings_version">संस्करण</string>
+
+    <!-- Errors & Loading -->
+    <string name="loading">लोड हो रहा है</string>
+    <string name="generating">जनरेट हो रहा है...</string>
+    <string name="please_wait">कृपया प्रतीक्षा करें</string>
+    <string name="network_error">नेटवर्क त्रुटि</string>
+    <string name="invalid_api_key">अमान्य एपीआई कुंजी</string>
+    <string name="quota_exceeded">कोटा समाप्त</string>
+    <string name="something_went_wrong">कुछ गलत हो गया</string>
+    <string name="try_again">पुनः प्रयास करें</string>
+    <string name="no_data_available">कोई डेटा उपलब्ध नहीं है</string>
+    <string name="no_questions_found">कोई प्रश्न नहीं मिला</string>
+    <string name="saved_successfully">सफलतापूर्वक सहेजा गया</string>
+    <string name="deleted_successfully">सफलतापूर्वक हटाया गया</string>
+    <string name="pdf_generated">पीडीएफ बन गया</string>
+    <string name="pdf_generation_failed">पीडीएफ निर्माण विफल</string>
+
+    <!-- Additional UI Labels -->
+    <string name="back">वापस</string>
+    <string name="close">बंद करें</string>
+    <string name="save_changes">परिवर्तन सहेजें</string>
+    <string name="cancel">रद्द करें</string>
+    <string name="edit_profile">प्रोफाइल संपादित करें</string>
+    <string name="reset_profile">प्रोफाइल रीसेट करें</string>
+
+    <!-- In-App Update System -->
+    <string name="update_available">नया अपडेट उपलब्ध है</string>
+    <string name="update_whats_new">नया क्या है</string>
+    <string name="update_now">अभी अपडेट करें</string>
+    <string name="update_later">बाद में</string>
+    <string name="update_downloading">अपडेट डाउनलोड हो रहा है...</string>
+    <string name="update_failed">अपडेट डाउनलोड विफल रहा। कृपया पुनः प्रयास करें।</string>
+    <string name="update_retry">पुनः प्रयास करें</string>
+    <string name="update_allow_install">गिटहब से डाउनलोड किए गए अपडेट इंस्टॉल करने के लिए, अंशु मॉक को अज्ञात ऐप इंस्टॉल करने की अनुमति दें।</string>
+    <string name="update_allow">अनुमति दें</string>
+    <string name="update_check_for_updates">अपडेट के लिए जांचें</string>
+    <string name="update_checking">अपडेट की जांच हो रही है...</string>
+    <string name="update_latest_version">आप नवीनतम संस्करण का उपयोग कर रहे हैं।</string>
+    <string name="update_current_version">वर्तमान संस्करण</string>
+    <!-- Connect With Us Section -->
+    <string name="connect_with_us_title">हमसे जुड़ें</string>
+    <string name="connect_with_us_subtitle">AnshuCore से जुड़े रहें</string>
+    <string name="connect_instagram_title">Instagram</string>
+    <string name="connect_instagram_subtitle">Instagram पर हमें फॉलो करें</string>
+    <string name="connect_youtube_title">YouTube</string>
+    <string name="connect_youtube_subtitle">YouTube पर सब्सक्राइब करें</string>
+    <string name="connect_website_title">वेबसाइट</string>
+    <string name="connect_website_subtitle">AnshuCore वेबसाइट पर जाएं</string>
+</resources>
