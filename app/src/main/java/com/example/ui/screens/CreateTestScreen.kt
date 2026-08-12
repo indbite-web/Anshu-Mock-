@@ -141,6 +141,29 @@ fun CreateTestScreen(
     var targetTopic by remember { mutableStateOf("") }
     var customInstruction by remember { mutableStateOf("") }
 
+    val prefilledTopic by viewModel.prefilledTestTopic.collectAsState()
+    val prefilledSubject by viewModel.prefilledTestSubject.collectAsState()
+    val prefilledInstruction by viewModel.prefilledTestInstruction.collectAsState()
+    val prefilledLanguage by viewModel.prefilledTestLanguage.collectAsState()
+
+    LaunchedEffect(prefilledTopic, prefilledSubject, prefilledInstruction, prefilledLanguage) {
+        if (!prefilledTopic.isNullOrBlank()) {
+            targetTopic = prefilledTopic!!
+        }
+        if (!prefilledSubject.isNullOrBlank()) {
+            targetSubject = prefilledSubject!!
+        }
+        if (!prefilledInstruction.isNullOrBlank()) {
+            customInstruction = prefilledInstruction!!
+        }
+        if (!prefilledLanguage.isNullOrBlank()) {
+            selectedLanguage = prefilledLanguage!!
+        }
+        if (!prefilledTopic.isNullOrBlank() || !prefilledSubject.isNullOrBlank() || !prefilledInstruction.isNullOrBlank() || !prefilledLanguage.isNullOrBlank()) {
+            viewModel.clearTestPrefill()
+        }
+    }
+
     var showModelBottomSheet by remember { mutableStateOf(false) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var showCustomTimerDialog by remember { mutableStateOf(false) }

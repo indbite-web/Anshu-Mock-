@@ -1,9 +1,15 @@
 package com.example.ui.screens
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,6 +30,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.example.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -32,6 +40,11 @@ import androidx.compose.ui.unit.sp
 import com.example.data.db.StudyNoteEntity
 import com.example.data.viewmodel.MainViewModel
 import com.example.model.GeneratedStudyNotes
+import com.example.ui.components.StudyMaterialInputCard
+import com.example.util.PdfInfo
+import com.example.util.StudyMaterialProcessor
+import kotlinx.coroutines.launch
+import java.io.File
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 
@@ -39,9 +52,11 @@ import com.squareup.moshi.Types
 @Composable
 fun StudyNotesScreen(
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onTestYourself: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     val savedNotes by viewModel.savedStudyNotes.collectAsState()
@@ -55,6 +70,74 @@ fun StudyNotesScreen(
     var customInstructionsInput by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var activeNoteForView by remember { mutableStateOf<StudyNoteEntity?>(null) }
+
+    // Study Material State
+    val selectedImageUris = remember { mutableStateListOf<Uri>() }
+    var pdfInfo by remember { mutableStateOf<PdfInfo?>(null) }
+    var isProcessingPdf by remember { mutableStateOf(false) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && tempCameraUri != null) {
+            selectedImageUris.add(tempCameraUri!!)
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                val file = File.createTempFile("study_notes_", ".jpg", context.cacheDir)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to initialize camera", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Camera permission required to capture notes", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            selectedImageUris.addAll(uris)
+        }
+    }
+
+    val pdfPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            isProcessingPdf = true
+            coroutineScope.launch {
+                val info = StudyMaterialProcessor.getPdfInfo(context, uri)
+                pdfInfo = info
+                isProcessingPdf = false
+            }
+        }
+    }
+
+    fun launchCamera() {
+        val permission = Manifest.permission.CAMERA
+        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                val file = File.createTempFile("study_notes_", ".jpg", context.cacheDir)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to initialize camera", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            cameraPermissionLauncher.launch(permission)
+        }
+    }
 
     val primaryExam by viewModel.primaryExam.collectAsState()
     val preferredLanguage by viewModel.preferredLanguage.collectAsState()
@@ -186,6 +269,25 @@ fun StudyNotesScreen(
                     }
 
                     item {
+                        StudyMaterialInputCard(
+                            selectedImageUris = selectedImageUris,
+                            pdfInfo = pdfInfo,
+                            isProcessingPdf = isProcessingPdf,
+                            onCameraClick = { launchCamera() },
+                            onGalleryClick = {
+                                galleryLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            onPdfClick = {
+                                pdfPickerLauncher.launch(arrayOf("application/pdf"))
+                            },
+                            onRemoveImage = { uri -> selectedImageUris.remove(uri) },
+                            onRemovePdf = { pdfInfo = null }
+                        )
+                    }
+
+                    item {
                         OutlinedTextField(
                             value = customInstructionsInput,
                             onValueChange = { customInstructionsInput = it },
@@ -248,16 +350,18 @@ fun StudyNotesScreen(
                     item {
                         Button(
                             onClick = {
-                                if (topicInput.isBlank()) {
-                                    errorMessage = "Please enter a topic name."
+                                if (topicInput.isBlank() && selectedImageUris.isEmpty() && pdfInfo == null) {
+                                    errorMessage = "Please enter a topic name or provide study material."
                                     return@Button
                                 }
                                 errorMessage = null
                                 viewModel.generateNotes(
                                     subject = subjectInput.ifBlank { "General" },
-                                    topic = topicInput,
+                                    topic = topicInput.ifBlank { "Uploaded Study Material" },
                                     customInstructions = customInstructionsInput,
                                     language = selectedLanguage,
+                                    imageUris = selectedImageUris.toList(),
+                                    pdfUri = pdfInfo?.uri,
                                     onSuccess = {
                                         Toast.makeText(context, "Study Notes Generated!", Toast.LENGTH_SHORT).show()
                                     },
@@ -315,7 +419,21 @@ fun StudyNotesScreen(
                                 },
                                 onDownloadPdf = {
                                     com.example.util.PdfExporter.exportStudyNotesPdf(context, notes)
-                                }
+                                },
+                                onTestYourself = if (onTestYourself != null) {
+                                    {
+                                        val notesSummary = "Study Notes Topic: ${notes.title}\n\nKey Concepts:\n" +
+                                            notes.importantConcepts.joinToString("\n") { "• $it" } +
+                                            "\n\nSummary:\n${notes.summary}"
+                                        viewModel.setTestPrefill(
+                                            topic = if (notes.title.isNotBlank()) notes.title else topicInput,
+                                            subject = if (subjectInput.isNotBlank()) subjectInput else "General",
+                                            customInstruction = notesSummary,
+                                            language = selectedLanguage
+                                        )
+                                        onTestYourself()
+                                    }
+                                } else null
                             )
                         }
                     }
@@ -529,7 +647,8 @@ fun StudyNoteContentView(
     notes: GeneratedStudyNotes,
     onSave: (() -> Unit)?,
     onCopy: () -> Unit,
-    onDownloadPdf: (() -> Unit)? = null
+    onDownloadPdf: (() -> Unit)? = null,
+    onTestYourself: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -634,6 +753,18 @@ fun StudyNoteContentView(
                     items = notes.quickRevision,
                     accentColor = MaterialTheme.colorScheme.error
                 )
+            }
+
+            if (onTestYourself != null) {
+                Button(
+                    onClick = onTestYourself,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Test Yourself on This Topic", fontWeight = FontWeight.Bold)
+                }
             }
 
             Row(

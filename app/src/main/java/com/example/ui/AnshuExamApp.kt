@@ -2,6 +2,9 @@ package com.example.ui
 
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -278,28 +281,56 @@ fun AnshuExamApp(
                             .fillMaxSize()
                             .padding(innerPadding),
                         enterTransition = {
-                            fadeIn(animationSpec = tween(220)) + slideIntoContainer(
-                                AnimatedContentTransitionScope.SlideDirection.Left,
-                                animationSpec = tween(220)
-                            )
+                            val target = targetState.destination.route
+                            val initial = initialState.destination.route
+                            if (target in topLevelRoutes && initial in topLevelRoutes) {
+                                fadeIn(animationSpec = tween(180, easing = LinearOutSlowInEasing))
+                            } else {
+                                fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)) + slideIntoContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.Left,
+                                    animationSpec = tween(220, easing = FastOutSlowInEasing),
+                                    initialOffset = { it / 4 }
+                                )
+                            }
                         },
                         exitTransition = {
-                            fadeOut(animationSpec = tween(180)) + slideOutOfContainer(
-                                AnimatedContentTransitionScope.SlideDirection.Left,
-                                animationSpec = tween(220)
-                            )
+                            val target = targetState.destination.route
+                            val initial = initialState.destination.route
+                            if (target in topLevelRoutes && initial in topLevelRoutes) {
+                                fadeOut(animationSpec = tween(160, easing = FastOutLinearInEasing))
+                            } else {
+                                fadeOut(animationSpec = tween(180, easing = FastOutLinearInEasing)) + slideOutOfContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.Left,
+                                    animationSpec = tween(220, easing = FastOutSlowInEasing),
+                                    targetOffset = { -it / 4 }
+                                )
+                            }
                         },
                         popEnterTransition = {
-                            fadeIn(animationSpec = tween(220)) + slideIntoContainer(
-                                AnimatedContentTransitionScope.SlideDirection.Right,
-                                animationSpec = tween(220)
-                            )
+                            val target = targetState.destination.route
+                            val initial = initialState.destination.route
+                            if (target in topLevelRoutes && initial in topLevelRoutes) {
+                                fadeIn(animationSpec = tween(180, easing = LinearOutSlowInEasing))
+                            } else {
+                                fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)) + slideIntoContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.Right,
+                                    animationSpec = tween(220, easing = FastOutSlowInEasing),
+                                    initialOffset = { -it / 4 }
+                                )
+                            }
                         },
                         popExitTransition = {
-                            fadeOut(animationSpec = tween(180)) + slideOutOfContainer(
-                                AnimatedContentTransitionScope.SlideDirection.Right,
-                                animationSpec = tween(220)
-                            )
+                            val target = targetState.destination.route
+                            val initial = initialState.destination.route
+                            if (target in topLevelRoutes && initial in topLevelRoutes) {
+                                fadeOut(animationSpec = tween(160, easing = FastOutLinearInEasing))
+                            } else {
+                                fadeOut(animationSpec = tween(180, easing = FastOutLinearInEasing)) + slideOutOfContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.Right,
+                                    animationSpec = tween(220, easing = FastOutSlowInEasing),
+                                    targetOffset = { it / 4 }
+                                )
+                            }
                         }
                     ) {
                         composable("onboarding") {
@@ -432,21 +463,24 @@ fun AnshuExamApp(
                         composable("study_notes") {
                             StudyNotesScreen(
                                 viewModel = viewModel,
-                                onNavigateBack = { navController.popBackStack() }
+                                onNavigateBack = { navController.popBackStack() },
+                                onTestYourself = { navController.navigate("create_test") }
                             )
                         }
 
                         composable("flashcards") {
                             FlashcardsScreen(
                                 viewModel = viewModel,
-                                onNavigateBack = { navController.popBackStack() }
+                                onNavigateBack = { navController.popBackStack() },
+                                onTestYourself = { navController.navigate("create_test") }
                             )
                         }
 
                         composable("ai_doubt") {
                             AiDoubtScreen(
                                 viewModel = viewModel,
-                                onNavigateBack = { navController.popBackStack() }
+                                onNavigateBack = { navController.popBackStack() },
+                                onTestYourself = { navController.navigate("create_test") }
                             )
                         }
                     }

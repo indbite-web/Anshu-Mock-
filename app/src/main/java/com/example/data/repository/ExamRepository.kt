@@ -1127,11 +1127,15 @@ data class GenerationResult(
         preferredModelId: String,
         autoFallback: Boolean,
         apiKey: String,
+        materialParts: List<Part> = emptyList(),
         onStatusUpdate: (String) -> Unit = {}
     ): com.example.model.GeneratedStudyNotes = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             throw IllegalArgumentException("Gemini API key required. Please configure your API key in Settings → AI Configuration.")
         }
+
+        val effectiveSubject = if (subject.isNotBlank()) subject else "General"
+        val effectiveTopic = if (topic.isNotBlank()) topic else if (materialParts.isNotEmpty()) "Uploaded Study Material" else "Study Notes"
 
         val langInstruction = when (language.trim().lowercase()) {
             "hindi" -> "Generate the content in clear Hindi using Devanagari script."
@@ -1143,10 +1147,11 @@ data class GenerationResult(
             You are an expert examination study guide creator and educational content designer.
             Your task is to generate structured study material for the given subject and topic.
 
-            SUBJECT: $subject
-            TOPIC: $topic
+            SUBJECT: $effectiveSubject
+            TOPIC: $effectiveTopic
             LANGUAGE DIRECTIVE: $langInstruction
             ${if (customInstructions.isNotBlank()) "CUSTOM INSTRUCTIONS: $customInstructions" else ""}
+            ${if (materialParts.isNotEmpty()) "STRICT SOURCE MODE: Base study notes primarily on the attached study material (images/PDF). Synthesize all key concepts, definitions, and exam points found in the material." else ""}
 
             CRITICAL RULES:
             1. Language Requirement: $langInstruction
@@ -1154,8 +1159,8 @@ data class GenerationResult(
             3. Response MUST be valid JSON strictly matching this schema:
 
             {
-              "title": "$topic Study Notes",
-              "summary": "Clear, concise 2-3 sentence overview of $topic...",
+              "title": "$effectiveTopic Study Notes",
+              "summary": "Clear, concise 2-3 sentence overview of $effectiveTopic...",
               "importantConcepts": [
                 "Concept 1 with brief explanation",
                 "Concept 2 with brief explanation"
@@ -1177,8 +1182,12 @@ data class GenerationResult(
             }
         """.trimIndent()
 
+        val reqParts = mutableListOf<Part>()
+        reqParts.add(Part(text = "Please generate structured study notes for $effectiveTopic ($effectiveSubject) in JSON format. $langInstruction"))
+        reqParts.addAll(materialParts)
+
         val request = GenerateContentRequest(
-            contents = listOf(Content(parts = listOf(Part(text = "Please generate structured study notes for $topic ($subject) in JSON format. $langInstruction")))),
+            contents = listOf(Content(parts = reqParts)),
             generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.3f),
             systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
         )
@@ -1231,11 +1240,15 @@ data class GenerationResult(
         preferredModelId: String,
         autoFallback: Boolean,
         apiKey: String,
+        materialParts: List<Part> = emptyList(),
         onStatusUpdate: (String) -> Unit = {}
     ): com.example.model.GeneratedFlashcardSet = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             throw IllegalArgumentException("Gemini API key required.")
         }
+
+        val effectiveSubject = if (subject.isNotBlank()) subject else "General"
+        val effectiveTopic = if (topic.isNotBlank()) topic else if (materialParts.isNotEmpty()) "Uploaded Study Material" else "Flashcard Deck"
 
         val langInstruction = when (language.trim().lowercase()) {
             "hindi" -> "Generate the content in clear Hindi using Devanagari script."
@@ -1247,9 +1260,10 @@ data class GenerationResult(
             You are an expert educational flashcard creator.
             Generate $count high-yield study flashcards.
 
-            SUBJECT: $subject
-            TOPIC: $topic
+            SUBJECT: $effectiveSubject
+            TOPIC: $effectiveTopic
             LANGUAGE DIRECTIVE: $langInstruction
+            ${if (materialParts.isNotEmpty()) "SOURCE MODE: Generate flashcards directly from the information and concepts in the attached study material (images/PDF)." else ""}
 
             CRITICAL RULES:
             1. Language: $langInstruction.
@@ -1258,8 +1272,8 @@ data class GenerationResult(
             4. JSON Output Schema (STRICT):
 
             {
-              "subject": "$subject",
-              "topic": "$topic",
+              "subject": "$effectiveSubject",
+              "topic": "$effectiveTopic",
               "flashcards": [
                 {
                   "frontText": "Front question/concept text",
@@ -1269,8 +1283,12 @@ data class GenerationResult(
             }
         """.trimIndent()
 
+        val reqParts = mutableListOf<Part>()
+        reqParts.add(Part(text = "Please generate $count flashcards for $effectiveTopic ($effectiveSubject) in JSON format. $langInstruction"))
+        reqParts.addAll(materialParts)
+
         val request = GenerateContentRequest(
-            contents = listOf(Content(parts = listOf(Part(text = "Please generate $count flashcards for $topic ($subject) in JSON format. $langInstruction")))),
+            contents = listOf(Content(parts = reqParts)),
             generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.3f),
             systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
         )
@@ -1323,11 +1341,15 @@ data class GenerationResult(
         preferredModelId: String,
         autoFallback: Boolean,
         apiKey: String,
+        materialParts: List<Part> = emptyList(),
         onStatusUpdate: (String) -> Unit = {}
     ): com.example.model.GeneratedDoubtResponse = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             throw IllegalArgumentException("Gemini API key required.")
         }
+
+        val effectiveSubject = if (subject.isNotBlank()) subject else "General"
+        val effectiveTopic = if (topic.isNotBlank()) topic else if (materialParts.isNotEmpty()) "Uploaded Problem/Notes" else "General Doubt"
 
         val langInstruction = when (language.trim().lowercase()) {
             "hindi" -> "Generate the content in clear Hindi using Devanagari script."
@@ -1336,12 +1358,13 @@ data class GenerationResult(
         }
 
         val systemPrompt = """
-            You are an educational AI Doubt Solver.
+            You are an educational AI Doubt Solver and Problem Solver.
             Answer the student's question accurately, educationally, and concisely.
 
-            ${if (subject.isNotBlank()) "SUBJECT: $subject" else ""}
-            ${if (topic.isNotBlank()) "TOPIC: $topic" else ""}
+            ${if (effectiveSubject.isNotBlank()) "SUBJECT: $effectiveSubject" else ""}
+            ${if (effectiveTopic.isNotBlank()) "TOPIC: $effectiveTopic" else ""}
             LANGUAGE DIRECTIVE: $langInstruction
+            ${if (materialParts.isNotEmpty()) "ATTACHED MATERIAL: The student provided an image/PDF of textbook pages, handwritten notes, diagrams, or question papers. Analyze the attached pages, read any questions/concepts present, solve them step-by-step, and provide the complete solution." else ""}
 
             CRITICAL RULES:
             1. Language: $langInstruction.
@@ -1356,8 +1379,13 @@ data class GenerationResult(
             }
         """.trimIndent()
 
+        val reqParts = mutableListOf<Part>()
+        val promptText = if (doubt.isNotBlank()) "Doubt: $doubt. $langInstruction" else "Please analyze the attached study material/question image, solve the question or explain the concept in detail, and return the answer in JSON format. $langInstruction"
+        reqParts.add(Part(text = promptText))
+        reqParts.addAll(materialParts)
+
         val request = GenerateContentRequest(
-            contents = listOf(Content(parts = listOf(Part(text = "Doubt: $doubt. $langInstruction")))),
+            contents = listOf(Content(parts = reqParts)),
             generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.2f),
             systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
         )

@@ -1,6 +1,12 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -35,10 +41,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.example.R
 import com.example.data.db.FlashcardEntity
 import com.example.data.viewmodel.MainViewModel
 import com.example.model.GeneratedFlashcardSet
+import com.example.ui.components.StudyMaterialInputCard
+import com.example.util.PdfInfo
+import com.example.util.StudyMaterialProcessor
+import kotlinx.coroutines.launch
+import java.io.File
 
 data class FlashcardDisplayItem(
     val frontText: String,
@@ -58,9 +71,11 @@ data class ReviewSessionData(
 @Composable
 fun FlashcardsScreen(
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onTestYourself: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     val savedCards by viewModel.savedFlashcards.collectAsState()
@@ -73,6 +88,74 @@ fun FlashcardsScreen(
     var cardCountInput by remember { mutableIntStateOf(8) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
+
+    // Study Material State
+    val selectedImageUris = remember { mutableStateListOf<Uri>() }
+    var pdfInfo by remember { mutableStateOf<PdfInfo?>(null) }
+    var isProcessingPdf by remember { mutableStateOf(false) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && tempCameraUri != null) {
+            selectedImageUris.add(tempCameraUri!!)
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                val file = File.createTempFile("flashcard_mat_", ".jpg", context.cacheDir)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to initialize camera", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Camera permission required to capture notes", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            selectedImageUris.addAll(uris)
+        }
+    }
+
+    val pdfPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            isProcessingPdf = true
+            coroutineScope.launch {
+                val info = StudyMaterialProcessor.getPdfInfo(context, uri)
+                pdfInfo = info
+                isProcessingPdf = false
+            }
+        }
+    }
+
+    fun launchCamera() {
+        val permission = Manifest.permission.CAMERA
+        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                val file = File.createTempFile("flashcard_mat_", ".jpg", context.cacheDir)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to initialize camera", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            cameraPermissionLauncher.launch(permission)
+        }
+    }
 
     // Active review session state
     var activeReviewSession by remember { mutableStateOf<ReviewSessionData?>(null) }
@@ -103,7 +186,8 @@ fun FlashcardsScreen(
         FlashcardReviewScreen(
             session = currentSession,
             viewModel = viewModel,
-            onNavigateBack = { activeReviewSession = null }
+            onNavigateBack = { activeReviewSession = null },
+            onTestYourself = onTestYourself
         )
         return
     }
@@ -198,12 +282,31 @@ fun FlashcardsScreen(
                         OutlinedTextField(
                             value = topicInput,
                             onValueChange = { topicInput = it },
-                            label = { Text("Topic / Chapter (e.g., Cell Division, Mughals)") },
+                            label = { Text("Topic / Chapter (e.g., Cell Division, Temple)") },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("flashcards_topic_input"),
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    item {
+                        StudyMaterialInputCard(
+                            selectedImageUris = selectedImageUris,
+                            pdfInfo = pdfInfo,
+                            isProcessingPdf = isProcessingPdf,
+                            onCameraClick = { launchCamera() },
+                            onGalleryClick = {
+                                galleryLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            onPdfClick = {
+                                pdfPickerLauncher.launch(arrayOf("application/pdf"))
+                            },
+                            onRemoveImage = { uri -> selectedImageUris.remove(uri) },
+                            onRemovePdf = { pdfInfo = null }
                         )
                     }
 
@@ -265,22 +368,24 @@ fun FlashcardsScreen(
                     item {
                         Button(
                             onClick = {
-                                if (topicInput.isBlank()) {
-                                    errorMessage = "Please enter a topic name."
+                                if (topicInput.isBlank() && selectedImageUris.isEmpty() && pdfInfo == null) {
+                                    errorMessage = "Please enter a topic name or provide study material."
                                     return@Button
                                 }
                                 errorMessage = null
                                 viewModel.generateFlashcards(
                                     subject = subjectInput.ifBlank { "General" },
-                                    topic = topicInput,
+                                    topic = topicInput.ifBlank { "Uploaded Study Material" },
                                     count = cardCountInput,
                                     language = selectedLanguage,
+                                    imageUris = selectedImageUris.toList(),
+                                    pdfUri = pdfInfo?.uri,
                                     onSuccess = { cardSet ->
                                         Toast.makeText(context, "Flashcards ready!", Toast.LENGTH_SHORT).show()
                                         // Immediately open dedicated Review Screen
                                         activeReviewSession = ReviewSessionData(
                                             subject = subjectInput.ifBlank { "General" },
-                                            topic = topicInput,
+                                            topic = topicInput.ifBlank { "Uploaded Study Material" },
                                             cards = cardSet.flashcards.map {
                                                 FlashcardDisplayItem(frontText = it.frontText, backText = it.backText)
                                             },
@@ -454,7 +559,8 @@ fun FlashcardsScreen(
 fun FlashcardReviewScreen(
     session: ReviewSessionData,
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onTestYourself: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var isSavedOffline by remember { mutableStateOf(!session.isUnsaved) }
@@ -606,6 +712,29 @@ fun FlashcardReviewScreen(
                             }
                         }
                     }
+                }
+            }
+
+            if (onTestYourself != null) {
+                Button(
+                    onClick = {
+                        val cardsContent = "Flashcard Study Material (Topic: ${session.topic}):\n\n" +
+                            session.cards.joinToString("\n\n") { card ->
+                                "Front: ${card.frontText}\nBack: ${card.backText}"
+                            }
+                        viewModel.setTestPrefill(
+                            topic = session.topic,
+                            subject = session.subject.ifBlank { "General" },
+                            customInstruction = cardsContent
+                        )
+                        onTestYourself()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Test Yourself on This Topic", fontWeight = FontWeight.Bold)
                 }
             }
 

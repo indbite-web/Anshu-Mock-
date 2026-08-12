@@ -862,6 +862,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isGeneratingNotes = MutableStateFlow(false)
     val isGeneratingNotes: StateFlow<Boolean> = _isGeneratingNotes.asStateFlow()
 
+    // Prefilled test state for "Test Yourself / Test Me" flow
+    private val _prefilledTestTopic = MutableStateFlow<String?>(null)
+    val prefilledTestTopic: StateFlow<String?> = _prefilledTestTopic.asStateFlow()
+
+    private val _prefilledTestSubject = MutableStateFlow<String?>(null)
+    val prefilledTestSubject: StateFlow<String?> = _prefilledTestSubject.asStateFlow()
+
+    private val _prefilledTestInstruction = MutableStateFlow<String?>(null)
+    val prefilledTestInstruction: StateFlow<String?> = _prefilledTestInstruction.asStateFlow()
+
+    private val _prefilledTestLanguage = MutableStateFlow<String?>(null)
+    val prefilledTestLanguage: StateFlow<String?> = _prefilledTestLanguage.asStateFlow()
+
+    fun setTestPrefill(
+        topic: String,
+        subject: String = "",
+        customInstruction: String = "",
+        language: String = ""
+    ) {
+        _prefilledTestTopic.value = topic
+        _prefilledTestSubject.value = subject
+        _prefilledTestInstruction.value = customInstruction
+        _prefilledTestLanguage.value = language
+    }
+
+    fun clearTestPrefill() {
+        _prefilledTestTopic.value = null
+        _prefilledTestSubject.value = null
+        _prefilledTestInstruction.value = null
+        _prefilledTestLanguage.value = null
+    }
+
     private val _notesGenerationStatus = MutableStateFlow("")
     val notesGenerationStatus: StateFlow<String> = _notesGenerationStatus.asStateFlow()
 
@@ -873,17 +905,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         topic: String,
         customInstructions: String,
         language: String = "English",
+        imageUris: List<Uri> = emptyList(),
+        pdfUri: Uri? = null,
         onSuccess: (GeneratedStudyNotes) -> Unit,
         onError: (String) -> Unit
     ) {
         if (_isGeneratingNotes.value) return
         _isGeneratingNotes.value = true
-        _notesGenerationStatus.value = "Connecting to Gemini..."
+        _notesGenerationStatus.value = "Reading study material..."
         viewModelScope.launch {
             try {
                 val apiKey = prefsRepo.userApiKey.value
                 val modelId = prefsRepo.selectedModel.value
                 val chosenLang = if (language.isNotBlank()) language else prefsRepo.defaultLanguage.value.ifBlank { "English" }
+                val materialParts = com.example.util.StudyMaterialProcessor.processMaterialToParts(
+                    getApplication(),
+                    imageUris,
+                    pdfUri
+                )
                 val notes = examRepo.generateStudyNotes(
                     subject = subject,
                     topic = topic,
@@ -892,6 +931,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     preferredModelId = modelId,
                     autoFallback = true,
                     apiKey = apiKey,
+                    materialParts = materialParts,
                     onStatusUpdate = { _notesGenerationStatus.value = it }
                 )
                 _generatedNotes.value = notes
@@ -953,17 +993,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         topic: String,
         count: Int,
         language: String = "English",
+        imageUris: List<Uri> = emptyList(),
+        pdfUri: Uri? = null,
         onSuccess: (GeneratedFlashcardSet) -> Unit,
         onError: (String) -> Unit
     ) {
         if (_isGeneratingFlashcards.value) return
         _isGeneratingFlashcards.value = true
-        _flashcardsGenerationStatus.value = "Preparing flashcards..."
+        _flashcardsGenerationStatus.value = "Reading study material..."
         viewModelScope.launch {
             try {
                 val apiKey = prefsRepo.userApiKey.value
                 val modelId = prefsRepo.selectedModel.value
                 val chosenLang = if (language.isNotBlank()) language else prefsRepo.defaultLanguage.value.ifBlank { "English" }
+                val materialParts = com.example.util.StudyMaterialProcessor.processMaterialToParts(
+                    getApplication(),
+                    imageUris,
+                    pdfUri
+                )
                 val cardSet = examRepo.generateFlashcards(
                     subject = subject,
                     topic = topic,
@@ -972,6 +1019,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     preferredModelId = modelId,
                     autoFallback = true,
                     apiKey = apiKey,
+                    materialParts = materialParts,
                     onStatusUpdate = { _flashcardsGenerationStatus.value = it }
                 )
                 _generatedFlashcardSet.value = cardSet
@@ -1040,17 +1088,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         topic: String,
         doubt: String,
         language: String = "English",
+        imageUris: List<Uri> = emptyList(),
+        pdfUri: Uri? = null,
         onSuccess: (GeneratedDoubtResponse) -> Unit,
         onError: (String) -> Unit
     ) {
         if (_isSolvingDoubt.value) return
         _isSolvingDoubt.value = true
-        _doubtStatus.value = "Consulting AI..."
+        _doubtStatus.value = "Reading study material..."
         viewModelScope.launch {
             try {
                 val apiKey = prefsRepo.userApiKey.value
                 val modelId = prefsRepo.selectedModel.value
                 val chosenLang = if (language.isNotBlank()) language else prefsRepo.defaultLanguage.value.ifBlank { "English" }
+                val materialParts = com.example.util.StudyMaterialProcessor.processMaterialToParts(
+                    getApplication(),
+                    imageUris,
+                    pdfUri
+                )
                 val resp = examRepo.solveDoubt(
                     subject = subject,
                     topic = topic,
@@ -1059,6 +1114,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     preferredModelId = modelId,
                     autoFallback = true,
                     apiKey = apiKey,
+                    materialParts = materialParts,
                     onStatusUpdate = { _doubtStatus.value = it }
                 )
                 onSuccess(resp)

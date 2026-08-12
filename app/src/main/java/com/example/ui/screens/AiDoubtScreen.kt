@@ -1,9 +1,15 @@
 package com.example.ui.screens
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,11 +25,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import com.example.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import com.example.R
 import com.example.data.viewmodel.MainViewModel
 import com.example.model.GeneratedDoubtResponse
+import com.example.ui.components.StudyMaterialInputCard
+import com.example.util.PdfInfo
+import com.example.util.StudyMaterialProcessor
+import kotlinx.coroutines.launch
+import java.io.File
 
 data class DoubtHistoryItem(
     val question: String,
@@ -35,9 +48,11 @@ data class DoubtHistoryItem(
 @Composable
 fun AiDoubtScreen(
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onTestYourself: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     val isSolving by viewModel.isSolvingDoubt.collectAsState()
     val doubtStatus by viewModel.doubtStatus.collectAsState()
@@ -52,6 +67,74 @@ fun AiDoubtScreen(
     var activeResponse by remember { mutableStateOf<GeneratedDoubtResponse?>(null) }
     var activeQuestion by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Study Material State
+    val selectedImageUris = remember { mutableStateListOf<Uri>() }
+    var pdfInfo by remember { mutableStateOf<PdfInfo?>(null) }
+    var isProcessingPdf by remember { mutableStateOf(false) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && tempCameraUri != null) {
+            selectedImageUris.add(tempCameraUri!!)
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                val file = File.createTempFile("doubt_mat_", ".jpg", context.cacheDir)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to initialize camera", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Camera permission required to capture notes", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            selectedImageUris.addAll(uris)
+        }
+    }
+
+    val pdfPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            isProcessingPdf = true
+            coroutineScope.launch {
+                val info = StudyMaterialProcessor.getPdfInfo(context, uri)
+                pdfInfo = info
+                isProcessingPdf = false
+            }
+        }
+    }
+
+    fun launchCamera() {
+        val permission = Manifest.permission.CAMERA
+        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                val file = File.createTempFile("doubt_mat_", ".jpg", context.cacheDir)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to initialize camera", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            cameraPermissionLauncher.launch(permission)
+        }
+    }
 
     val recentDoubts = remember { mutableStateListOf<DoubtHistoryItem>() }
 
@@ -185,6 +268,25 @@ fun AiDoubtScreen(
                     }
 
                     item {
+                        StudyMaterialInputCard(
+                            selectedImageUris = selectedImageUris,
+                            pdfInfo = pdfInfo,
+                            isProcessingPdf = isProcessingPdf,
+                            onCameraClick = { launchCamera() },
+                            onGalleryClick = {
+                                galleryLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            onPdfClick = {
+                                pdfPickerLauncher.launch(arrayOf("application/pdf"))
+                            },
+                            onRemoveImage = { uri -> selectedImageUris.remove(uri) },
+                            onRemovePdf = { pdfInfo = null }
+                        )
+                    }
+
+                    item {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 text = "Language",
@@ -237,19 +339,21 @@ fun AiDoubtScreen(
                                         )
                                         Text(err, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
                                     }
-                                    if (doubtInput.isNotBlank()) {
+                                    if (doubtInput.isNotBlank() || selectedImageUris.isNotEmpty() || pdfInfo != null) {
                                         Button(
                                             onClick = {
                                                 errorMessage = null
                                                 viewModel.solveDoubt(
                                                     subject = subjectInput,
                                                     topic = topicInput,
-                                                    doubt = doubtInput,
+                                                    doubt = doubtInput.ifBlank { "Analyze uploaded material and explain key concepts/questions." },
                                                     language = selectedLanguage,
+                                                    imageUris = selectedImageUris.toList(),
+                                                    pdfUri = pdfInfo?.uri,
                                                     onSuccess = { response ->
                                                         activeResponse = response
-                                                        activeQuestion = doubtInput
-                                                        recentDoubts.add(0, DoubtHistoryItem(question = doubtInput, response = response))
+                                                        activeQuestion = doubtInput.ifBlank { "Uploaded Material Question" }
+                                                        recentDoubts.add(0, DoubtHistoryItem(question = activeQuestion, response = response))
                                                         Toast.makeText(context, "Explanation generated!", Toast.LENGTH_SHORT).show()
                                                     },
                                                     onError = { e -> errorMessage = e }
@@ -268,20 +372,22 @@ fun AiDoubtScreen(
                     item {
                         Button(
                             onClick = {
-                                if (doubtInput.isBlank()) {
-                                    errorMessage = "Please enter your question or doubt."
+                                if (doubtInput.isBlank() && selectedImageUris.isEmpty() && pdfInfo == null) {
+                                    errorMessage = "Please enter your question or provide study material."
                                     return@Button
                                 }
                                 errorMessage = null
                                 viewModel.solveDoubt(
                                     subject = subjectInput,
                                     topic = topicInput,
-                                    doubt = doubtInput,
+                                    doubt = doubtInput.ifBlank { "Analyze uploaded material and explain key concepts/questions." },
                                     language = selectedLanguage,
+                                    imageUris = selectedImageUris.toList(),
+                                    pdfUri = pdfInfo?.uri,
                                     onSuccess = { response ->
                                         activeResponse = response
-                                        activeQuestion = doubtInput
-                                        recentDoubts.add(0, DoubtHistoryItem(question = doubtInput, response = response))
+                                        activeQuestion = doubtInput.ifBlank { "Uploaded Material Question" }
+                                        recentDoubts.add(0, DoubtHistoryItem(question = activeQuestion, response = response))
                                         Toast.makeText(context, "Explanation generated!", Toast.LENGTH_SHORT).show()
                                     },
                                     onError = { err -> errorMessage = err }
@@ -332,6 +438,19 @@ fun AiDoubtScreen(
                                         language = selectedLanguage
                                     )
                                 },
+                                onTestYourself = if (onTestYourself != null) {
+                                    {
+                                        val qText = if (activeQuestion.isNotBlank()) activeQuestion else doubtInput
+                                        val doubtContext = "AI Doubt Solver Material:\nQuestion: $qText\n\nDirect Answer:\n${resp.directAnswer}\n\nExplanation:\n${resp.simpleExplanation}\n${resp.detailedExplanation}\n\nKey Takeaway:\n${resp.examPoint}"
+                                        viewModel.setTestPrefill(
+                                            topic = if (topicInput.isNotBlank()) topicInput else qText,
+                                            subject = if (subjectInput.isNotBlank()) subjectInput else "General",
+                                            customInstruction = doubtContext,
+                                            language = selectedLanguage
+                                        )
+                                        onTestYourself()
+                                    }
+                                } else null,
                                 onClear = { activeResponse = null }
                             )
                         }
@@ -455,7 +574,8 @@ fun DoubtResponseCard(
     language: String = "English",
     onCopy: () -> Unit,
     onClear: () -> Unit,
-    onDownloadPdf: (() -> Unit)? = null
+    onDownloadPdf: (() -> Unit)? = null,
+    onTestYourself: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -527,6 +647,18 @@ fun DoubtResponseCard(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(response.examPoint, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
                     }
+                }
+            }
+
+            if (onTestYourself != null) {
+                Button(
+                    onClick = onTestYourself,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Test Yourself on This Topic", fontWeight = FontWeight.Bold)
                 }
             }
 
